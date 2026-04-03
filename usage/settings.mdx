@@ -1,0 +1,277 @@
+---
+title: "Settings"
+description: "Configure Baritone's behavior with ~100 settings."
+---
+
+## Changing settings
+
+You change settings directly in chat (with the appropriate prefix). Settings are case-insensitive.
+
+| Action | Example |
+|---|---|
+| Toggle a boolean setting | `#allowBreak` |
+| Set a numeric setting | `#primaryTimeoutMS 250` |
+| Reset one setting to its default | `#acceptableThrowawayItems reset` |
+| Reset **all** settings to defaults | `#reset` |
+| See all settings changed from defaults | `#modified` |
+
+<Tip>
+  Settings are persisted to `minecraft/baritone/settings.txt` between sessions. You can edit this file directly — one setting per line, e.g. `allowBreak false`.
+</Tip>
+
+---
+
+## Movement
+
+<AccordionGroup>
+  <Accordion title="allowBreak (default: true)">
+    Allows Baritone to break blocks while pathfinding. Disable this if you want Baritone to only navigate through existing open space.
+
+    ```bash
+    #allowBreak
+    ```
+  </Accordion>
+
+  <Accordion title="allowSprint (default: true)">
+    Allows Baritone to sprint while moving.
+
+    ```bash
+    #allowSprint
+    ```
+  </Accordion>
+
+  <Accordion title="allowPlace (default: true)">
+    Allows Baritone to place blocks (e.g. to bridge gaps or pillar up).
+
+    ```bash
+    #allowPlace
+    ```
+  </Accordion>
+
+  <Accordion title="allowParkour (default: false)">
+    Allows Baritone to make parkour jumps. Somewhat unreliable — it can overshoot landings.
+
+    ```bash
+    #allowParkour
+    ```
+  </Accordion>
+
+  <Accordion title="allowParkourPlace (default: false)">
+    Allows Baritone to place a block while making a parkour jump. Requires `allowParkour` to be enabled to have any effect. Actually quite reliable on its own.
+
+    ```bash
+    #allowParkourPlace
+    ```
+  </Accordion>
+
+  <Accordion title="allowDiagonalAscend (default: false)">
+    Allows diagonal ascending movement. Safer than `allowParkour`, though slightly riskier in the Nether due to adjacent unchecked blocks.
+
+    ```bash
+    #allowDiagonalAscend
+    ```
+  </Accordion>
+
+  <Accordion title="blockPlacementPenalty (default: 20.0)">
+    A cost (in ticks) added to any path that requires placing a block. Higher values make Baritone place blocks less often; lower values make it place blocks more freely. The high default discourages unnecessary block use.
+
+    ```bash
+    #blockPlacementPenalty 5
+    ```
+  </Accordion>
+
+  <Accordion title="allowBreakAnyway (default: empty list)">
+    A list of blocks that Baritone is allowed to break even when `allowBreak` is set to `false`. Useful for allowing specific blocks to be cleared while otherwise preserving the environment.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Mining
+
+<AccordionGroup>
+  <Accordion title="legitMine (default: false)">
+    When enabled, Baritone only mines ores it can physically see — no X-ray behavior. It explores randomly around `legitMineYLevel` until it finds the target ores. Enable this if you don't want it to look like you're using X-ray on a server.
+
+    ```bash
+    #legitMine
+    ```
+  </Accordion>
+
+  <Accordion title="legitMineYLevel (default: -59)">
+    The Y level Baritone explores at when `legitMine` is enabled. Set this to the Y level where your target ore generates most frequently.
+
+    ```bash
+    #legitMineYLevel -59
+    ```
+  </Accordion>
+
+  <Accordion title="mineScanDroppedItems (default: true)">
+    While mining, Baritone also treats dropped items of the target type as valid destinations, so it picks them up rather than walking past them.
+
+    ```bash
+    #mineScanDroppedItems
+    ```
+  </Accordion>
+
+  <Accordion title="blocksToAvoidBreaking (default: crafting_table, furnace, chest, trapped_chest)">
+    Blocks that Baritone will try not to break, but will break if absolutely necessary. Add blocks here to protect your builds.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Pathfinding
+
+<AccordionGroup>
+  <Accordion title="primaryTimeoutMS (default: 500)">
+    How long (in milliseconds) Baritone spends calculating a path before stopping — provided it found a valid path. Lower values give faster (but potentially less optimal) paths.
+
+    ```bash
+    #primaryTimeoutMS 250
+    ```
+  </Accordion>
+
+  <Accordion title="failureTimeoutMS (default: 2000)">
+    The hard maximum time (in milliseconds) Baritone will spend on any single path calculation, even if no valid path has been found yet.
+
+    ```bash
+    #failureTimeoutMS 3000
+    ```
+  </Accordion>
+
+  <Accordion title="renderCachedChunks (default: false)">
+    Renders cached chunks as a semitransparent overlay so you can see what Baritone knows about unloaded areas. Very useful on servers with low render distance, but has a significant performance cost — every chunk compiles twice.
+
+    <Warning>
+      Does not work with OptiFine. Enable this only if you have a capable computer.
+    </Warning>
+
+    ```bash
+    #renderCachedChunks
+    ```
+  </Accordion>
+
+  <Accordion title="cachedChunksOpacity (default: 0.5)">
+    Controls the opacity of the cached chunk overlay when `renderCachedChunks` is enabled. `0.0` is fully transparent, `1.0` is fully opaque.
+
+    ```bash
+    #cachedChunksOpacity 0.3
+    ```
+  </Accordion>
+
+  <Accordion title="worldExploringChunkOffset (default: 0)">
+    Offsets the closest-unvisited-chunk target by this many chunks in both axes during exploration. Set this to your render distance for more efficient chunk loading while exploring.
+
+    ```bash
+    #worldExploringChunkOffset 8
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Combat and safety
+
+<AccordionGroup>
+  <Accordion title="avoidance (default: false)">
+    Enables mob and spawner avoidance. When active, Baritone penalizes paths that pass near mobs or mob spawners. Disabled by default because building the avoidance map noticeably impacts performance (up to ~200ms of game stutter when many mobs are nearby).
+
+    ```bash
+    #avoidance
+    ```
+  </Accordion>
+
+  <Accordion title="blocksToAvoidBreaking (default: crafting_table, furnace, chest, trapped_chest)">
+    Blocks Baritone tries to avoid breaking. It will still break them if required by the path, but won't do so casually.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Automation
+
+<AccordionGroup>
+  <Accordion title="backfill (default: false)">
+    Automatically fills in the tunnel behind you while mining. Saves inventory space and prevents mobs from following through the tunnel.
+
+    ```bash
+    #backfill
+    ```
+  </Accordion>
+
+  <Accordion title="buildInLayers (default: false)">
+    When building a schematic, complete one horizontal layer before moving to the next, instead of building all columns simultaneously.
+
+    ```bash
+    #buildInLayers
+    ```
+  </Accordion>
+
+  <Accordion title="buildRepeat (default: 0,0,0)">
+    Repeats a build by moving this many blocks along each axis before building again. Set to `0,0,0` to disable. Use `buildRepeatCount` to limit repetitions.
+
+    Example — repeat the build 10 blocks in the X direction:
+    ```bash
+    #buildRepeat 10 0 0
+    ```
+  </Accordion>
+
+  <Accordion title="followRadius (default: 3)">
+    The radius in blocks within which Baritone considers itself "close enough" to the follow target. Increase to keep more distance; decrease to follow more tightly.
+
+    ```bash
+    #followRadius 5
+    ```
+  </Accordion>
+
+  <Accordion title="acceptableThrowawayItems (default: dirt, cobblestone, netherrack, stone)">
+    Blocks Baritone is allowed to place as throwaway (for bridging, pillaring, etc.). Extend this list to allow more block types.
+
+    ```bash
+    #acceptableThrowawayItems reset    # restore defaults
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Display and control
+
+<AccordionGroup>
+  <Accordion title="chatControl (default: true)">
+    Allows Baritone commands to be typed in chat without any prefix. Disable this to prevent accidental commands being sent to public chat.
+
+    <Note>
+      Impact disables `chatControl` when you first run it, and this setting persists in `settings.txt`. If commands stopped working after running Impact, this is why — re-enable it or use the `#` prefix.
+    </Note>
+
+    ```bash
+    #chatControl
+    ```
+  </Accordion>
+
+  <Accordion title="prefixControl (default: true)">
+    Allows Baritone commands to be issued using the `#` prefix. Disable this only if you're certain `chatControl` or another control method is active.
+
+    ```bash
+    #prefixControl
+    ```
+  </Accordion>
+
+  <Accordion title="renderGoal (default: true)">
+    Renders a visual indicator at the current goal position.
+
+    ```bash
+    #renderGoal
+    ```
+  </Accordion>
+
+  <Accordion title="renderPath (default: true)">
+    Renders the calculated path as a visible line in the world.
+
+    ```bash
+    #renderPath
+    ```
+  </Accordion>
+</AccordionGroup>

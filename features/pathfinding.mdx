@@ -1,0 +1,122 @@
+---
+title: "Pathfinding"
+description: "How Baritone's A* pathfinding engine works."
+---
+
+Baritone navigates using a heavily modified A\* search algorithm built for Minecraft's constraints: limited render distance, a dynamic block environment, and the full range of movement that a player character can perform. The pathfinder considers every action — breaking blocks, placing blocks, falling, climbing, jumping — as a weighted cost, then finds the cheapest sequence of moves to reach your goal.
+
+## Movement capabilities
+
+<AccordionGroup>
+  <Accordion title="Block breaking">
+    Baritone factors your current hotbar and tool set into the cost of breaking each block. If you have an Efficiency V diamond pickaxe, it may route you straight through a stone wall. With only a wooden pick, the same route costs far more, so Baritone will look for a way around or over instead.
+
+    Toggle block breaking with the `allowBreak` setting.
+  </Accordion>
+
+  <Accordion title="Block placing">
+    Baritone can place blocks as part of a path — sneak-back-placing over edges, pillaring upward, and bridging gaps. A configurable penalty (default: 1 second) discourages unnecessary block consumption. The list of acceptable throwaway blocks defaults to cobblestone, dirt, and netherrack, and is fully configurable via `acceptableThrowawayItems`.
+
+    Toggle block placing with the `allowPlace` setting. Adjust the penalty with `blockPlacementPenalty`.
+  </Accordion>
+
+  <Accordion title="Falling">
+    Baritone will drop up to 3 blocks onto solid ground by default (configurable — raise this if you have Feather Falling or don't mind fall damage). If a water bucket is on your hotbar, it will fall up to 23 blocks and place the bucket beneath itself just before impact. It will fall an unlimited distance into existing still water.
+  </Accordion>
+
+  <Accordion title="Vines and ladders">
+    Baritone climbs and descends vines and ladders correctly, including breaking its fall by grabbing them mid-air when it calculates that to be safe. The experimental `allowVines` setting enables more advanced maneuvers, such as strafing sideways between separate ladder or vine columns while airborne — disabled by default.
+  </Accordion>
+
+  <Accordion title="Parkour">
+    Baritone executes sprint jumps across 1-, 2-, and 3-block gaps. Enable with `allowParkour`.
+
+    **Parkour place** extends this further: Baritone can sprint-jump a 3-block gap and place the landing block beneath itself mid-jump. Enable with `allowParkourPlace`.
+  </Accordion>
+
+  <Accordion title="Fence gates and doors">
+    Baritone opens and passes through fence gates and doors as part of its normal pathfinding.
+  </Accordion>
+
+  <Accordion title="Slabs and stairs">
+    Half-height blocks (slabs) and stairs are treated correctly in movement cost calculations.
+  </Accordion>
+
+  <Accordion title="Falling blocks">
+    When Baritone needs to break a block that has gravel, sand, or other falling blocks stacked above it, it accounts for the cost of breaking the entire stack — not just the target block. It also refuses to break any block adjacent to a liquid, so it will not, for example, knock out the bottom of a gravel column hanging below a lava lake.
+  </Accordion>
+
+  <Accordion title="Avoiding dangerous blocks">
+    Baritone avoids walking through fire, stepping on magma, cutting corners over lava (which deals splash damage), and breaking blocks that border liquids. These hazards are weighted heavily or forbidden outright in cost calculations.
+  </Accordion>
+</AccordionGroup>
+
+## Path calculation algorithm
+
+Baritone's pathfinder runs on a background thread and uses several techniques to produce useful paths even when the goal is far beyond the loaded world.
+
+### Segmented calculation
+
+Rather than computing one path all the way to the goal, Baritone calculates a **path segment** — a chunk of path it can execute — and begins pre-calculating the next segment while it walks the current one. Path calculation ends in one of three ways:
+
+1. The goal is reached.
+2. The time budget (configurable timeout) expires.
+3. The pathfinder hits the edge of loaded/cached chunks.
+
+In cases 2 and 3, Baritone uses **incremental cost backoff** to pick the best partial segment to execute.
+
+### Incremental cost backoff
+
+When the pathfinder exits early, it selects the most promising partial node using a set of increasing cost coefficients. It picks the node with the smallest coefficient that still travels at least 5 blocks from the start. This ensures forward progress even when the full goal is unreachable in one calculation cycle.
+
+### Minimum improvement repropagation
+
+The pathfinder ignores alternate routes that improve the cost by less than 0.01 ticks. Repropagating a sub-millisecond improvement to every connected node is more expensive than the time saved, so these micro-improvements are discarded.
+
+### Backtrack cost favoring
+
+While computing the next segment, Baritone heavily discounts the cost of reusing nodes from the tail of the current segment. This lets it splice smoothly onto the new segment — jumping ahead early if the new path begins by retracing the current one.
+
+### Backtrack detection and pausing
+
+If the best path calculated so far passes back through the player's current position, Baritone pauses execution (when safe) rather than continuing forward only to reverse course moments later. The "best path so far" is reported continuously by the calculation thread and reflects the incremental cost backoff decision, so it accurately represents what will be chosen when calculation finishes.
+
+<Note>
+  The current best path renders in **dark blue** in-game. The latest explored node renders in **light blue**. These update live while the calculation thread runs.
+</Note>
+
+## Chunk caching
+
+Baritone maintains an internal cache of visited chunks to enable long-distance pathing beyond the loaded render distance.
+
+- Chunks are compressed to a **2-bit representation**: `AIR`, `SOLID`, `WATER`, or `AVOID`. This keeps memory usage low while preserving the information the pathfinder needs.
+- The cache lives in RAM by default. Enable disk persistence to survive restarts — use `reloadall` and `saveall` to manage it manually, or let Baritone persist it automatically.
+- Enable the `renderCachedChunks` setting to visualize cached chunks in-game. Pair with `cachedChunksOpacity` to tune the overlay transparency. Note that rendering the cache requires a capable machine.
+
+```bash
+# Toggle chunk cache rendering
+renderCachedChunks
+# Reload the cache from disk
+#reloadall
+# Save the cache to disk
+#saveall
+```
+
+## Goals
+
+Baritone's pathfinder works toward a **goal** — a spatial constraint the player must satisfy. You can set goals directly in chat or via the API. Available goal types:
+
+| Goal | Description |
+|------|-------------|
+| `GoalBlock` | Stand inside one specific block at foot level |
+| `GoalXZ` | Reach a specific X/Z coordinate (ignores Y) |
+| `GoalYLevel` | Reach a specific Y level |
+| `GoalTwoBlocks` | Stand in a position at foot or eye level |
+| `GoalGetToBlock` | Stand adjacent to, below, or on top of a block |
+| `GoalNear` | Get within a radius of a position |
+| `GoalAxis` | Reach an axis or diagonal axis (x=0, z=0, or x=z) at a configurable Y |
+| `GoalComposite` | Any combination of the above — satisfied when any one sub-goal is met |
+
+`GoalComposite` is used internally by processes like mining: `#mine diamond_ore` creates a `GoalComposite` of `GoalTwoBlocks` instances for every diamond ore location Baritone knows about.
+
+For the full programmatic API, see [Goals](/api/goals).

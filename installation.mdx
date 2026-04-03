@@ -1,0 +1,128 @@
+---
+title: "Installation"
+description: "Install Baritone as a Forge, NeoForge, or Fabric mod."
+---
+
+<Warning>
+  Releases are made rarely and may not include the latest features or bug fixes. If you need cutting-edge changes, consider [building from source](#build-from-source).
+</Warning>
+
+<Steps>
+  <Step title="Download a release">
+    Go to the [Baritone releases page](https://github.com/cabaletta/baritone/releases) and download the jar for your Minecraft version and mod loader.
+
+    Pick the right artifact for your situation:
+
+    | Artifact | When to use |
+    |----------|-------------|
+    | `baritone-api-*` | Another mod in your instance integrates with Baritone — this exposes the public API surface |
+    | `baritone-standalone-*` | Standalone use with no other mods depending on Baritone — extra performance from full obfuscation |
+    | `baritone-unoptimized-*` | Debugging or submitting a crash report — nothing is obfuscated, readable stack traces |
+  </Step>
+
+  <Step title="Drop the jar into your mods folder">
+    Place the downloaded jar file into your Minecraft `mods/` directory. The exact path depends on your mod loader.
+
+    <Tabs>
+      <Tab title="Forge">
+        Copy the `baritone-*-forge-VERSION.jar` into:
+
+        ```
+        .minecraft/mods/
+        ```
+
+        Launch Minecraft with your Forge profile. No additional configuration is required.
+      </Tab>
+      <Tab title="NeoForge">
+        Copy the `baritone-*-neoforge-VERSION.jar` into:
+
+        ```
+        .minecraft/mods/
+        ```
+
+        Launch Minecraft with your NeoForge profile. No additional configuration is required.
+
+        <Note>NeoForge support starts at Minecraft 1.20.3.</Note>
+      </Tab>
+      <Tab title="Fabric">
+        Copy the `baritone-*-fabric-VERSION.jar` into:
+
+        ```
+        .minecraft/mods/
+        ```
+
+        Launch Minecraft with your Fabric profile. The Fabric build may also work on Quilt.
+      </Tab>
+    </Tabs>
+  </Step>
+
+  <Step title="Verify the installation">
+    Launch Minecraft and join a world. After Baritone initializes, it creates a `baritone/` folder inside your Minecraft directory:
+
+    ```
+    .minecraft/baritone/
+    ```
+
+    If that folder exists, Baritone is installed and running. You can also type `#version` in chat to confirm and see the version number.
+  </Step>
+</Steps>
+
+## Version compatibility
+
+The table below maps Minecraft versions to major Baritone release series. Download the release series that matches your Minecraft version.
+
+| Minecraft | 1.12 | 1.13 | 1.14 | 1.15 | 1.16 | 1.17 | 1.18 | 1.19 | 1.20 | 1.21 | 1.21.4 | 1.21.5 | 1.21.6–1.21.8 |
+|-----------|------|------|------|------|------|------|------|------|------|------|--------|--------|---------------|
+| Baritone  | v1.2 | v1.3 | v1.4 | v1.5 | v1.6 | v1.7 | v1.8 | v1.9 | v1.10 | v1.11 | v1.13 | v1.14 | v1.15 |
+
+## Build from source
+
+If you need unreleased changes or want to verify the build yourself, you can compile Baritone locally.
+
+<Steps>
+  <Step title="Clone the repository">
+    Clone or download the Baritone source for the branch you want to build:
+
+    ```bash
+    git clone https://github.com/cabaletta/baritone.git
+    cd baritone
+    ```
+  </Step>
+
+  <Step title="Install the correct Java version">
+    Baritone requires a specific Java version depending on the Minecraft version you are targeting:
+
+    | Minecraft version | Required Java |
+    |-------------------|---------------|
+    | 1.12.2 – 1.16.5 | Java 8 |
+    | 1.17.1 | Java 16 |
+    | 1.18.2 – 1.20.4 | Java 17 |
+    | 1.20.5 – 1.21.x | Java 21 |
+
+    You can download Java from [Adoptium](https://adoptium.net/). To check your current version:
+
+    ```bash
+    java -version
+    ```
+  </Step>
+
+  <Step title="Run the build">
+    On macOS or Linux:
+
+    ```bash
+    ./gradlew build
+    ```
+
+    On Windows:
+
+    ```bash
+    gradlew build
+    ```
+
+    The built artifacts are placed in the `dist/` directory. These are identical to the files published in official releases.
+  </Step>
+</Steps>
+
+<Note>
+  For older branches, you may need to run `gradlew build -Pbaritone.forge_build` or `gradlew build -Pbaritone.fabric_build` instead of plain `gradlew build`. Check the `.github/workflows/gradle_build.yml` file in the branch you are building for the exact commands.
+</Note>

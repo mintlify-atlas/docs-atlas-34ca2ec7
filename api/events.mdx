@@ -1,0 +1,415 @@
+---
+title: 'Events'
+description: 'Listen to Baritone game events using the IEventBus.'
+---
+
+Baritone fires events throughout the game loop that your mod can observe. You receive them by implementing `IGameEventListener` and registering it with the `IEventBus` exposed on your `IBaritone` instance:
+
+```java
+IEventBus bus = baritone.getGameEventHandler();
+bus.registerEventListener(myListener);
+```
+
+## Registering a listener
+
+<Steps>
+  <Step title="Implement IGameEventListener or AbstractGameEventListener">
+    `IGameEventListener` declares every event method. If you only care about a subset, implement `AbstractGameEventListener` instead — it is a default-method interface with empty bodies for every event, so you override only what you need.
+
+    ```java
+    public class MyListener implements AbstractGameEventListener {
+
+        @Override
+        public void onTick(TickEvent event) {
+            if (event.getState() == EventState.PRE && event.getType() == TickEvent.Type.IN) {
+                // runs once per in-game tick, before screen input
+            }
+        }
+
+        @Override
+        public void onPathEvent(PathEvent event) {
+            if (event == PathEvent.AT_GOAL) {
+                System.out.println("Reached the goal!");
+            }
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Register with the event bus">
+    ```java
+    MyListener listener = new MyListener();
+    baritone.getGameEventHandler().registerEventListener(listener);
+    ```
+
+    Registration takes effect immediately. The listener receives every subsequent event fired on this `IBaritone` instance.
+  </Step>
+
+  <Step title="Unregister when done">
+    `IEventBus` does not expose an `unregisterEventListener` method in the public API — keep a reference to your listener instance and avoid registering it more than once. If you need to stop receiving events, you can gate inside your listener using a boolean flag, or replace the listener with a no-op.
+
+    <Note>
+      If you are embedding Baritone inside a mod with a lifecycle, register your listener when the mod initializes and be careful not to register duplicate instances across reloads.
+    </Note>
+  </Step>
+</Steps>
+
+## Event reference
+
+### TickEvent
+
+**Listener method:** `void onTick(TickEvent event)` and `void onPostTick(TickEvent event)`
+
+Fires once per game tick. `onTick` is called before screen input is handled; `onPostTick` is called at the very end of `Minecraft#runTick()`.
+
+<Tabs>
+  <Tab title="Methods">
+    | Method | Return type | Description |
+    |---|---|---|
+    | `getState()` | `EventState` | `PRE` or `POST` |
+    | `getType()` | `TickEvent.Type` | `IN` (in-game, state is reliable) or `OUT` (main menu, no guarantees) |
+    | `getCount()` | `int` | Global tick counter, incremented across all instances |
+  </Tab>
+  <Tab title="Example">
+    ```java
+    @Override
+    public void onTick(TickEvent event) {
+        if (event.getType() == TickEvent.Type.IN && event.getState() == EventState.PRE) {
+            // Safe to read world state here
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+### PlayerUpdateEvent
+
+**Listener method:** `void onPlayerUpdate(PlayerUpdateEvent event)`
+
+Fires once per tick around the point where the player's rotation is sent to the server — both before (`PRE`) and after (`POST`) that send.
+
+| Method | Return type | Description |
+|---|---|---|
+| `getState()` | `EventState` | `PRE` or `POST` |
+
+---
+
+### PathEvent
+
+**Listener method:** `void onPathEvent(PathEvent event)`
+
+Fires whenever the pathfinder's state changes. `PathEvent` is an enum — compare directly with `==`.
+
+| Value | Meaning |
+|---|---|
+| `CALC_STARTED` | A path calculation has begun |
+| `CALC_FINISHED_NOW_EXECUTING` | Calculation succeeded; the path is now being followed |
+| `CALC_FAILED` | Calculation found no path |
+| `NEXT_SEGMENT_CALC_STARTED` | Background calculation of the next path segment started |
+| `NEXT_SEGMENT_CALC_FINISHED` | Background calculation of the next path segment finished |
+| `CONTINUING_ONTO_PLANNED_NEXT` | Smoothly transitioning onto the pre-calculated next segment |
+| `SPLICING_ONTO_NEXT_EARLY` | Cutting over to the next segment before the current one ends |
+| `AT_GOAL` | The player has reached the goal |
+| `PATH_FINISHED_NEXT_STILL_CALCULATING` | Current path exhausted; waiting for next segment |
+| `NEXT_CALC_FAILED` | The background calculation for the next segment failed |
+| `DISCARD_NEXT` | The pre-calculated next segment was thrown away |
+| `CANCELED` | Pathing was cancelled |
+
+```java
+@Override
+public void onPathEvent(PathEvent event) {
+    switch (event) {
+        case AT_GOAL:
+            System.out.println("Arrived.");
+            break;
+        case CALC_FAILED:
+            System.out.println("No path found.");
+            break;
+        case CANCELED:
+            System.out.println("Pathing stopped.");
+            break;
+    }
+}
+```
+
+---
+
+### ChatEvent
+
+**Listener method:** `void onSendChatMessage(ChatEvent event)`
+
+Fires when the local player is about to send a chat message. Extends `Cancellable` — call `event.cancel()` to suppress the message.
+
+| Method | Return type | Description |
+|---|---|---|
+| `getMessage()` | `String` | The message text about to be sent |
+| `cancel()` | `void` | Prevent the message from being sent |
+| `isCancelled()` | `boolean` | Whether the event has been cancelled |
+
+```java
+@Override
+public void onSendChatMessage(ChatEvent event) {
+    if (event.getMessage().startsWith("#")) {
+        // Handle custom command, suppress chat
+        event.cancel();
+    }
+}
+```
+
+---
+
+### TabCompleteEvent
+
+**Listener method:** `void onPreTabComplete(TabCompleteEvent event)`
+
+Fires before the client requests tab completions. Extends `Cancellable`. You can populate `completions` yourself and cancel the event to prevent the server request.
+
+| Field / Method | Type | Description |
+|---|---|---|
+| `prefix` | `String` (final) | The text the player typed before pressing Tab |
+| `completions` | `String[]` | Write your completions here; `null` by default |
+| `cancel()` | `void` | Skip the server-side completion request |
+
+```java
+@Override
+public void onPreTabComplete(TabCompleteEvent event) {
+    if (event.prefix.startsWith("!")) {
+        event.completions = new String[]{"!mine", "!goto", "!stop"};
+        event.cancel();
+    }
+}
+```
+
+---
+
+### ChunkEvent
+
+**Listener method:** `void onChunkEvent(ChunkEvent event)`
+
+Fires before and after a chunk is loaded, unloaded, or populated.
+
+| Method | Return type | Description |
+|---|---|---|
+| `getState()` | `EventState` | `PRE` or `POST` |
+| `getType()` | `ChunkEvent.Type` | `LOAD`, `UNLOAD`, `POPULATE_FULL`, or `POPULATE_PARTIAL` |
+| `getX()` | `int` | Chunk X coordinate |
+| `getZ()` | `int` | Chunk Z coordinate |
+| `isPostPopulate()` | `boolean` | `true` when `state == POST` and the type is a populate variant |
+
+```java
+@Override
+public void onChunkEvent(ChunkEvent event) {
+    if (event.getState() == EventState.POST && event.getType() == ChunkEvent.Type.LOAD) {
+        System.out.println("Chunk loaded at " + event.getX() + ", " + event.getZ());
+    }
+}
+```
+
+---
+
+### BlockChangeEvent
+
+**Listener method:** `void onBlockChange(BlockChangeEvent event)`
+
+Fires after a single-block or multi-block change packet is received and applied to the world.
+
+| Method | Return type | Description |
+|---|---|---|
+| `getChunkPos()` | `ChunkPos` | The chunk that contains the changed blocks |
+| `getBlocks()` | `List<Pair<BlockPos, BlockState>>` | Every position/state pair in this update |
+
+```java
+@Override
+public void onBlockChange(BlockChangeEvent event) {
+    for (Pair<BlockPos, BlockState> change : event.getBlocks()) {
+        BlockPos pos = change.first();
+        BlockState state = change.second();
+        // React to specific block placements or removals
+    }
+}
+```
+
+---
+
+### BlockInteractEvent
+
+**Listener method:** `void onBlockInteract(BlockInteractEvent event)`
+
+Fires when the local player interacts with a block — either starting to break it or right-clicking it.
+
+| Method | Return type | Description |
+|---|---|---|
+| `getPos()` | `BlockPos` | Position of the block |
+| `getType()` | `BlockInteractEvent.Type` | `START_BREAK` (left click to mine) or `USE` (right click to place/interact) |
+
+```java
+@Override
+public void onBlockInteract(BlockInteractEvent event) {
+    if (event.getType() == BlockInteractEvent.Type.START_BREAK) {
+        System.out.println("Starting to break " + event.getPos());
+    }
+}
+```
+
+---
+
+### WorldEvent
+
+**Listener method:** `void onWorldEvent(WorldEvent event)`
+
+Fires before and after a new world is loaded (e.g., joining a server or switching dimensions). `getWorld()` returns `null` when the world is being unloaded.
+
+| Method | Return type | Description |
+|---|---|---|
+| `getState()` | `EventState` | `PRE` or `POST` |
+| `getWorld()` | `ClientLevel` | The new world, or `null` when unloading |
+
+```java
+@Override
+public void onWorldEvent(WorldEvent event) {
+    if (event.getState() == EventState.POST && event.getWorld() != null) {
+        System.out.println("World loaded: " + event.getWorld().dimension().location());
+    }
+}
+```
+
+---
+
+### PacketEvent
+
+**Listener method:** `void onSendPacket(PacketEvent event)` and `void onReceivePacket(PacketEvent event)`
+
+Fires before an outbound packet is sent (`onSendPacket`) or before an inbound packet is processed (`onReceivePacket`).
+
+| Method | Return type | Description |
+|---|---|---|
+| `getState()` | `EventState` | `PRE` or `POST` |
+| `getPacket()` | `Packet<?>` | The raw packet |
+| `getNetworkManager()` | `Connection` | The underlying network connection |
+| `cast()` | `<T extends Packet<?>> T` | Convenience cast to a specific packet type |
+
+```java
+@Override
+public void onReceivePacket(PacketEvent event) {
+    if (event.getPacket() instanceof ClientboundSetHealthPacket packet) {
+        System.out.println("Health update: " + packet.getHealth());
+    }
+}
+```
+
+---
+
+### RenderEvent
+
+**Listener method:** `void onRenderPass(RenderEvent event)`
+
+Fires once per world render pass. Use this to draw custom overlays in 3D world space.
+
+| Method | Return type | Description |
+|---|---|---|
+| `getPartialTicks()` | `float` | Interpolation factor between the previous and current tick (0.0–1.0) |
+| `getModelViewStack()` | `PoseStack` | The model-view matrix stack for this render pass |
+| `getProjectionMatrix()` | `Matrix4f` | The projection matrix for this render pass |
+
+```java
+@Override
+public void onRenderPass(RenderEvent event) {
+    float pt = event.getPartialTicks();
+    PoseStack stack = event.getModelViewStack();
+    // Use pt and stack to draw world-space geometry
+}
+```
+
+---
+
+### RotationMoveEvent
+
+**Listener method:** `void onPlayerRotationMove(RotationMoveEvent event)`
+
+Fires before and after the player's `moveRelative` call and before and after the player jumps. You can modify the yaw and pitch used for movement by calling the setters.
+
+| Method | Return type | Description |
+|---|---|---|
+| `getType()` | `RotationMoveEvent.Type` | `MOTION_UPDATE` or `JUMP` |
+| `getOriginal()` | `Rotation` | The unmodified yaw/pitch at the time the event fired |
+| `getYaw()` / `setYaw(float)` | `float` / `void` | The movement yaw |
+| `getPitch()` / `setPitch(float)` | `float` / `void` | The movement pitch |
+
+<Warning>
+  Modifying the yaw or pitch here affects the direction of actual player movement. Only do this if you understand the consequences for server-side position calculations.
+</Warning>
+
+---
+
+### SprintStateEvent
+
+**Listener method:** `void onPlayerSprintState(SprintStateEvent event)`
+
+Fires when the sprint keybind state is checked inside `LocalPlayer#aiStep`. You can override whether the player sprints by setting a value on the event.
+
+| Method | Return type | Description |
+|---|---|---|
+| `getState()` | `Boolean` | `null` if not overridden, `true`/`false` to force sprint on or off |
+| `setState(boolean)` | `void` | Override the sprint state for this tick |
+
+```java
+@Override
+public void onPlayerSprintState(SprintStateEvent event) {
+    // Force sprint off while Baritone is navigating near lava
+    event.setState(false);
+}
+```
+
+---
+
+### onPlayerDeath
+
+**Listener method:** `void onPlayerDeath()`
+
+Fires when the local player dies, indicated by the creation of the `DeathScreen`. Carries no event object.
+
+```java
+@Override
+public void onPlayerDeath() {
+    System.out.println("Player died — stopping all processes.");
+    baritone.getPathingBehavior().cancelEverything();
+}
+```
+
+---
+
+## AbstractGameEventListener pattern
+
+`AbstractGameEventListener` is a default-method interface that provides empty implementations for every method in `IGameEventListener`. Implement it instead of `IGameEventListener` when you only care about a few events:
+
+```java
+public class BuildMonitor implements AbstractGameEventListener {
+
+    private final IBaritone baritone;
+
+    public BuildMonitor(IBaritone baritone) {
+        this.baritone = baritone;
+        baritone.getGameEventHandler().registerEventListener(this);
+    }
+
+    @Override
+    public void onPathEvent(PathEvent event) {
+        if (event == PathEvent.AT_GOAL) {
+            System.out.println("Build segment complete.");
+        }
+    }
+
+    @Override
+    public void onTick(TickEvent event) {
+        if (event.getState() == EventState.PRE
+                && event.getType() == TickEvent.Type.IN
+                && !baritone.getBuilderProcess().isActive()) {
+            System.out.println("Builder finished or was stopped.");
+        }
+    }
+}
+```
+
+Because all other methods have empty default bodies, you only override what you need — no boilerplate required.

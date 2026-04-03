@@ -1,0 +1,152 @@
+---
+title: "Schematic builder"
+description: "Build any structure automatically from .schematic or Litematica files."
+---
+
+Baritone's builder process reads a schematic file and autonomously places every block to match it. It handles pathfinding to each block position, pulling materials from the hotbar, scaffolding when it needs to reach a high position, and replanning when something changes mid-build.
+
+## Supported formats
+
+<CardGroup cols={2}>
+  <Card title=".schematic" icon="file">
+    Classic Schematica format. The most widely supported option.
+  </Card>
+  <Card title=".litematic" icon="file">
+    Litematica format. Requires the Litematica mod to be installed.
+  </Card>
+  <Card title=".nbt" icon="file">
+    Vanilla structure files, as produced by structure blocks.
+  </Card>
+  <Card title=".schem" icon="file">
+    Sponge schematic format (WorldEdit/Sponge ecosystem).
+  </Card>
+</CardGroup>
+
+## How to use
+
+<Steps>
+  <Step title="Place the schematic file">
+    Copy your schematic file into the `minecraft/schematics/` folder.
+  </Step>
+
+  <Step title="Position yourself">
+    Stand where you want the **origin corner** of the schematic to be placed. The origin is the bottom-northwest corner of the structure.
+  </Step>
+
+  <Step title="Start the build">
+    Run the `#build` command with the filename:
+
+    ```bash
+    #build myhouse.schematic
+    ```
+
+    Baritone starts immediately, placing blocks to match the schematic with its origin at your feet.
+  </Step>
+
+  <Step title="Monitor progress">
+    Baritone runs until every block matches the schematic. Use `#proc` to view status information about the active build process.
+
+    To pause and resume:
+
+    ```bash
+    # Pause the build
+    #pause
+
+    # Resume after pausing
+    #resume
+    ```
+
+    To cancel entirely:
+
+    ```bash
+    #stop
+    ```
+  </Step>
+</Steps>
+
+## Specifying the origin
+
+You can pass explicit coordinates as the origin instead of using your feet:
+
+```bash
+# Absolute coordinates
+#build myhouse.schematic 100 64 200
+
+# Relative coordinates (~ = your current coordinate on that axis)
+#build myhouse.schematic ~ 64 ~
+
+# Mixed: absolute Y, relative X and Z
+#build myhouse.schematic ~ 69 ~-420
+```
+
+`~-420` means your current Z coordinate minus 420. Any of the three axes can use either `~` (relative) or an integer (absolute).
+
+## Schematica integration
+
+If you have the Schematica mod installed and a schematic open in its interface, you can build it directly without placing any files:
+
+```bash
+#schematica
+```
+
+Baritone uses the schematic currently loaded in Schematica as the build target, with the origin determined by Schematica's placement settings.
+
+## Key settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `buildInLayers` | `false` | Build in horizontal layers from the bottom up, rather than in arbitrary order |
+| `buildRepeatDistance` | `0` | After finishing, shift the origin by this many blocks and rebuild. `0` disables repetition. |
+| `buildRepeatDirection` | — | The direction axis used with `buildRepeatDistance` (e.g. for repeating a farm in a line) |
+| `acceptableThrowawayItems` | cobblestone, dirt, netherrack | Blocks Baritone is allowed to use as scaffold fill when it needs to reach a position |
+| `allowInventory` | `false` | Allow Baritone to move blocks from the main inventory into hotbar slots |
+
+<Tip>
+  Use `buildRepeatDistance` and `buildRepeatDirection` together to tile a structure repeatedly — useful for building a crop farm or a row of identical buildings along an axis.
+</Tip>
+
+## What Baritone will and won't do
+
+<Note>
+  Baritone will **not** break existing blocks unless they conflict with the schematic. If a block is already in the correct state at a position, Baritone skips it. If a block is present but wrong, Baritone breaks it and replaces it.
+</Note>
+
+Baritone will:
+- Place any block the schematic requires that is currently missing.
+- Break and replace blocks that are the wrong type.
+- Scaffold with throwaway blocks to reach elevated positions.
+- Pull required block types from the hotbar (and optionally from inventory with `allowInventory`).
+
+Baritone will not:
+- Acquire materials it doesn't have — make sure your inventory is stocked.
+- Interact with containers or crafting tables to gather materials mid-build.
+
+## Programmatic usage
+
+```java
+IBaritone baritone = BaritoneAPI.getProvider().getPrimaryBaritone();
+IBuilderProcess builder = baritone.getBuilderProcess();
+
+// Build from a File with a specific origin
+File schematicFile = new File(minecraftDir, "schematics/myhouse.schematic");
+BlockPos origin = new BlockPos(100, 64, 200);
+boolean loaded = builder.build("myhouse", schematicFile, origin);
+
+if (!loaded) {
+    // File couldn't be read or format not recognised
+}
+
+// Build whatever Schematica currently has open
+builder.buildOpenSchematic();
+
+// Build the i-th region of an open Litematica file
+builder.buildOpenLitematic(0);
+
+// Pause and resume
+builder.pause();
+builder.resume();
+
+// Query current layer bounds (only meaningful when buildInLayers is true)
+builder.getMinLayer().ifPresent(y -> System.out.println("Current layer min: " + y));
+builder.getMaxLayer().ifPresent(y -> System.out.println("Current layer max: " + y));
+```

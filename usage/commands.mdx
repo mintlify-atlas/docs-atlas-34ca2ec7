@@ -1,0 +1,320 @@
+---
+title: "Commands"
+description: "All Baritone chat commands with usage examples."
+---
+
+## Prefix
+
+Baritone's default command prefix is `#`. You can also type commands directly in chat without any prefix, but if you make a typo (e.g. `gola 10000 10000` instead of `goal`) it gets sent to public chat, so using `#` is strongly recommended.
+
+In **Impact**, use `.b` as the prefix instead (e.g. `.b click`).
+
+To disable prefixless chat control, turn off the `chatControl` setting. To disable `#` prefix control, turn off `prefixControl`. In Impact, `.b` cannot be disabled.
+
+<Warning>
+  Don't disable both `chatControl` and `prefixControl` at the same time — you'll have no way to issue commands. If you do, delete `minecraft/baritone/settings.txt` and relaunch to reset.
+</Warning>
+
+<Tip>
+  Use `#help` in-game for clickable, tab-complete help. Try `#help sel` for selection commands and `#help wp` for waypoint commands.
+</Tip>
+
+---
+
+## Navigation commands
+
+<AccordionGroup>
+  <Accordion title="goto — go directly to coordinates">
+    Calculates a path and starts moving immediately.
+
+    ```bash
+    #goto <x> <y> <z>   # go to exact coordinates
+    #goto <x> <z>       # go to X/Z (ignores Y)
+    #goto <y>           # go to a specific Y level
+    #goto portal        # go to the nearest portal
+    #goto ender_chest   # go to the nearest ender chest
+    #goto <block_type>  # go to the nearest block of that type
+    ```
+  </Accordion>
+
+  <Accordion title="goal — set a goal without starting">
+    Sets the destination but doesn't begin pathing. Follow up with `#path` to start.
+
+    ```bash
+    #goal <x> <y> <z>   # set goal to exact coordinates
+    #goal <x> <z>       # set goal to X/Z
+    #goal <y>           # set goal to a Y level
+    #goal               # set goal to your current feet position
+    #goal clear         # clear the current goal
+    ```
+  </Accordion>
+
+  <Accordion title="path — start pathing to the current goal">
+    Begins pathfinding toward whatever goal is currently set.
+
+    ```bash
+    #path
+    ```
+
+    Combine with `#goal` or `#thisway` to set a destination first, then start moving.
+  </Accordion>
+
+  <Accordion title="thisway — path in the direction you're facing">
+    Calculates a goal in the direction your player is currently facing, then you run `#path` to begin.
+
+    ```bash
+    #thisway <distance>
+    ```
+
+    Example: face north and run `#thisway 1000` then `#path` to travel 1000 blocks north.
+  </Accordion>
+
+  <Accordion title="axis — go to an axis or diagonal">
+    Paths to the nearest cardinal axis (X=0 or Z=0) or diagonal axis at Y=120 (configurable via `axisHeight`).
+
+    ```bash
+    #axis
+    ```
+  </Accordion>
+
+  <Accordion title="come — path toward your camera">
+    Tells Baritone to head toward your camera position. Useful when freecam doesn't move your player.
+
+    ```bash
+    #come
+    ```
+  </Accordion>
+
+  <Accordion title="surface / top — go to the nearest surface">
+    Paths to the nearest surface-like area — either the actual surface or the highest available air space.
+
+    ```bash
+    #surface
+    #top
+    ```
+  </Accordion>
+
+  <Accordion title="invert — get as far from the goal as possible">
+    Inverts the current goal so Baritone tries to get as far away from it as possible.
+
+    ```bash
+    #invert
+    ```
+
+    Example: run `#goal` (sets goal to feet), then `#invert` to flee from your current position.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Automation commands
+
+<AccordionGroup>
+  <Accordion title="mine — mine specific blocks">
+    Mines the specified block types using cached chunk data to find them. Enable `legitMine` to only mine ores you can actually see.
+
+    ```bash
+    #mine <block_type>               # mine all of that block type
+    #mine <block_type> <block_type>  # mine multiple block types
+    #mine <count> <block_type>       # mine a specific quantity
+    ```
+
+    Examples:
+    ```bash
+    #mine diamond_ore
+    #mine diamond_ore iron_ore
+    #mine 64 diamond_ore
+    ```
+
+    Use Minecraft block IDs (e.g. `diamond_ore`, not `diamond`).
+  </Accordion>
+
+  <Accordion title="farm — harvest and replant crops">
+    Automatically harvests, replants, or bone-meals crops in the area.
+
+    ```bash
+    #farm                              # farm all crops nearby
+    #farm <range>                      # limit to a radius
+    #farm <range> <waypoint>           # limit to radius around a waypoint
+    ```
+  </Accordion>
+
+  <Accordion title="follow — follow players or entities">
+    Makes Baritone continuously path toward a target.
+
+    ```bash
+    #follow player <name>    # follow a specific player by name
+    #follow players          # follow any players in range
+    #follow entities         # follow any entities in range
+    #follow entity <type>    # follow entities of a specific type (e.g. pig)
+    ```
+
+    The `followRadius` setting controls how close Baritone tries to stay (default: 3 blocks).
+  </Accordion>
+
+  <Accordion title="build — build from a schematic file">
+    Builds a `.schematic` (or `.litematic`, `.nbt`) file. Schematic files must be placed in the `schematics/` folder inside your Minecraft directory.
+
+    ```bash
+    #build <schematic>              # build at your feet as origin
+    #build <schematic> <x> <y> <z> # build at a specific origin
+    ```
+
+    Coordinates support relative syntax: `~ 69 ~-420` means X=player X, Y=69, Z=player Z−420.
+
+    Example:
+    ```bash
+    #build myhouse.schematic
+    #build myhouse.schematic ~ 64 ~
+    ```
+  </Accordion>
+
+  <Accordion title="schematica — build the open Schematica schematic">
+    Builds the schematic currently open in the Schematica mod, using your feet as the origin.
+
+    ```bash
+    #schematica
+    ```
+  </Accordion>
+
+  <Accordion title="tunnel — dig a tunnel">
+    Digs a straight tunnel, deviating only to avoid lava.
+
+    ```bash
+    #tunnel                              # dig a 1×2 tunnel indefinitely
+    #tunnel <height> <width> <length>    # dig a tunnel with specific dimensions
+    ```
+
+    Example:
+    ```bash
+    #tunnel 3 2 100    # clear a 3-high, 2-wide, 100-deep tunnel
+    ```
+  </Accordion>
+
+  <Accordion title="explore — explore unvisited chunks">
+    Continuously paths toward the closest chunk that Baritone has never visited, starting from the given origin.
+
+    ```bash
+    #explore              # explore from your current position
+    #explore <x> <z>      # explore from a specific origin
+    ```
+  </Accordion>
+
+  <Accordion title="explorefilter — load a chunk exploration filter">
+    Loads a JSON file specifying which chunks to visit (or skip) during exploration.
+
+    ```bash
+    #explorefilter <file.json>
+    #explorefilter <file.json> invert
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Utility commands
+
+<AccordionGroup>
+  <Accordion title="stop / cancel / forcecancel — stop all activity">
+    Stops whatever Baritone is currently doing.
+
+    ```bash
+    #stop
+    #cancel
+    #forcecancel    # use this if #stop doesn't work
+    ```
+  </Accordion>
+
+  <Accordion title="wp — manage waypoints">
+    Full waypoint management. See the [Waypoints](/usage/waypoints) page for details.
+
+    ```bash
+    #wp
+    ```
+  </Accordion>
+
+  <Accordion title="click — click to set a destination on screen">
+    Click on a block in the world to path to it.
+
+    - **Right-click** — path on top of the block
+    - **Left-click** — path into the block (foot or eye level)
+    - **Left-click and drag** — select an area (`#help sel` for selection commands)
+
+    ```bash
+    #click
+    ```
+  </Accordion>
+
+  <Accordion title="blacklist — skip the current closest block">
+    Prevents Baritone from attempting to reach the closest instance of the current target block. Useful if one block in a vein is unreachable.
+
+    ```bash
+    #blacklist
+    ```
+  </Accordion>
+
+  <Accordion title="eta — estimated time to goal">
+    Displays the estimated time remaining to the next path segment and to the final goal. Goal ETA is approximate.
+
+    ```bash
+    #eta
+    ```
+  </Accordion>
+
+  <Accordion title="proc — info about the current process">
+    Shows miscellaneous information about the process currently controlling Baritone.
+
+    ```bash
+    #proc
+    ```
+  </Accordion>
+
+  <Accordion title="repack — re-cache chunks around you">
+    Forces Baritone to re-cache the chunks currently loaded around you. Useful if the cache appears stale.
+
+    ```bash
+    #repack
+    ```
+  </Accordion>
+
+  <Accordion title="render — fix glitched chunk rendering">
+    Fixes visually glitched chunks without reloading them all.
+
+    ```bash
+    #render
+    ```
+  </Accordion>
+
+  <Accordion title="reloadall / saveall — reload or save world cache">
+    Reload Baritone's world chunk cache from disk, or force-save it.
+
+    ```bash
+    #reloadall
+    #saveall
+    ```
+  </Accordion>
+
+  <Accordion title="find — search the cache for a block">
+    Searches Baritone's chunk cache for the location of a specific block type.
+
+    ```bash
+    #find <block_type>
+    ```
+  </Accordion>
+
+  <Accordion title="gc — call System.gc()">
+    Requests a Java garbage collection cycle, which may free up memory.
+
+    ```bash
+    #gc
+    ```
+  </Accordion>
+
+  <Accordion title="version — get the Baritone version">
+    Prints the currently installed Baritone version to chat.
+
+    ```bash
+    #version
+    ```
+  </Accordion>
+</AccordionGroup>

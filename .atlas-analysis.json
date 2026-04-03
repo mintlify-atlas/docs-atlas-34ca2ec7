@@ -1,0 +1,86 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Baritone",
+  "projectDescription": "A high-performance A* pathfinding bot and library for Minecraft that automates navigation, mining, building, farming, and more.",
+  "theme": "palm",
+  "primaryColor": "#94cb04",
+  "lightColor": "#545454",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "installation", "quickstart"]
+          },
+          {
+            "group": "Using Baritone",
+            "pages": ["usage/commands", "usage/settings", "usage/waypoints", "usage/troubleshooting"]
+          },
+          {
+            "group": "Features",
+            "pages": ["features/pathfinding", "features/processes", "features/elytra", "features/schematic"]
+          }
+        ]
+      },
+      {
+        "tab": "Developer API",
+        "groups": [
+          {
+            "group": "Integration",
+            "pages": ["api/overview", "api/getting-started", "api/integration-guide"]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": ["api/goals", "api/processes", "api/settings-reference"]
+          },
+          {
+            "group": "Building",
+            "pages": ["api/building", "api/events"]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "A* pathfinding with segmented long-distance path calculation",
+    "Automatic block breaking and placing during pathfinding",
+    "Mining automation with ore scanning and legit mine mode",
+    "Schematic building from .schematic or Litematica files",
+    "Elytra flight automation through the Nether",
+    "World chunk caching with optional disk persistence",
+    "Farm automation for harvesting and replanting crops",
+    "Entity following and player tracking",
+    "Parkour and complex movement support",
+    "Integration with Forge, NeoForge, and Fabric mod loaders",
+    "Public Java API for embedding in other Minecraft mods",
+    "~100 configurable settings via in-game chat or settings.txt"
+  ],
+  "publicApiSurface": [
+    "BaritoneAPI.getProvider()",
+    "BaritoneAPI.getSettings()",
+    "IBaritone.getCustomGoalProcess()",
+    "IBaritone.getMineProcess()",
+    "IBaritone.getBuilderProcess()",
+    "IBaritone.getFollowProcess()",
+    "IBaritone.getExploreProcess()",
+    "IBaritone.getFarmProcess()",
+    "IBaritone.getElytraProcess()",
+    "IBaritone.getPathingBehavior()",
+    "IBaritone.getWorldProvider()",
+    "IBaritone.getGameEventHandler()",
+    "GoalBlock",
+    "GoalXZ",
+    "GoalYLevel",
+    "GoalTwoBlocks",
+    "GoalGetToBlock",
+    "GoalNear",
+    "GoalAxis",
+    "GoalComposite",
+    "Settings (100+ configuration fields)",
+    "IPathingControlManager",
+    "ICommandManager"
+  ]
+}

@@ -1,0 +1,98 @@
+---
+title: "Waypoints"
+description: "Save and navigate to named locations with Baritone's waypoint system."
+---
+
+## What are waypoints?
+
+Waypoints are named positions that Baritone saves to disk. Each waypoint has a **name** and a **tag**. Tags group waypoints by type:
+
+| Tag | Created by |
+|---|---|
+| `home` | Automatically when you right-click a bed |
+| `death` | Automatically when you die |
+| `user` | Manually with `#wp save user <name>` |
+
+Waypoints persist between sessions — they survive relaunches and server reconnects.
+
+<Note>
+  Waypoint names and coordinates shown in chat are **clickable**. You can click them to quickly run follow-up commands without retyping.
+</Note>
+
+---
+
+## Commands
+
+All waypoint commands use the `#wp` prefix.
+
+| Command | Description |
+|---|---|
+| `#wp save user <name>` | Save your current position as a user waypoint |
+| `#wp goal <name>` | Set your goal to a named waypoint |
+| `#wp goal death` | List death waypoints and click one to navigate |
+| `#wp list` | List all saved waypoints |
+| `#wp delete <name>` | Delete a waypoint by name |
+
+After setting a goal with `#wp goal`, run `#path` to start moving there.
+
+---
+
+## Example: save and return to a location
+
+<Steps>
+  <Step title="Save your current position">
+    Stand at the location you want to save, then run:
+
+    ```bash
+    #wp save user coolbiome
+    ```
+
+    Baritone confirms the waypoint is saved with your current coordinates.
+  </Step>
+
+  <Step title="Navigate away">
+    Use any Baritone command or walk manually to move away from the location.
+  </Step>
+
+  <Step title="Set the waypoint as your goal">
+    ```bash
+    #wp goal coolbiome
+    ```
+  </Step>
+
+  <Step title="Start pathing">
+    ```bash
+    #path
+    ```
+
+    Baritone calculates a route and begins moving to the saved position.
+  </Step>
+</Steps>
+
+---
+
+## Returning to your death location
+
+When you die, Baritone automatically saves a waypoint with the `death` tag. To navigate back:
+
+```bash
+#wp goal death
+```
+
+If you've died more than once, Baritone lists all death waypoints in chat. Each entry is clickable — click the one you want to set it as your goal, then run `#path`.
+
+---
+
+## Automatic waypoints
+
+You don't need to do anything to create `home` and `death` waypoints — Baritone creates them for you.
+
+- **Home**: saved whenever you right-click a bed to set your spawn.
+- **Death**: saved every time your player dies.
+
+To disable automatic waypoint creation, turn off the relevant settings:
+
+```bash
+#doBedWaypoints    # toggle bed waypoint creation (default: true)
+#doDeathWaypoints  # toggle death waypoint creation (default: true)
+```

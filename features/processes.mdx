@@ -1,0 +1,199 @@
+---
+title: "Automation Processes"
+description: "Baritone's built-in automation processes for mining, farming, following, exploring, and building."
+---
+
+Baritone exposes its automation through **processes**. Only one process runs at a time — higher-priority processes interrupt lower-priority ones automatically. When a process finishes or you cancel it with `#stop` or `#cancel`, control returns to the next active process in priority order.
+
+<CardGroup cols={2}>
+  <Card title="Mining" icon="pickaxe" href="#mining">
+    Find and mine specific block types by name, optionally stopping after a target quantity.
+  </Card>
+  <Card title="Farming" icon="wheat" href="#farming">
+    Automatically harvest, replant, and bone meal crops within a configurable radius.
+  </Card>
+  <Card title="Following" icon="person-walking-arrow-right" href="#following">
+    Track and follow a specific player, all nearby players, or any entity type.
+  </Card>
+  <Card title="Exploring" icon="map" href="#exploring">
+    Systematically visit every unloaded chunk outward from an origin point.
+  </Card>
+  <Card title="Building" icon="hammer" href="#building">
+    Execute a full schematic build autonomously from a `.schematic` or Litematica file.
+  </Card>
+  <Card title="Custom goal" icon="code" href="#custom-goal">
+    Set any goal programmatically via the `ICustomGoalProcess` API.
+  </Card>
+</CardGroup>
+
+---
+
+## Mining
+
+Start mining with the `#mine` command followed by one or more block type names. Baritone builds a `GoalComposite` from every known ore location in its chunk cache and paths to them in order.
+
+```bash
+# Mine diamond ore indefinitely
+#mine diamond_ore
+
+# Mine exactly 64 iron ore, then stop
+#mine 64 iron_ore
+
+# Mine multiple block types at once
+#mine diamond_ore ancient_debris
+```
+
+<Tip>
+  If Baritone's chunk cache has no known locations for the target block, it will explore until it finds some. Enable `legitMine` to make this exploration mode the default behavior.
+</Tip>
+
+### Legit mine mode
+
+The `legitMine` setting restricts Baritone to only mining ores it can actually see — it will not dig to coordinates where it statistically expects ore. Instead it explores around `legitMineYLevel` (default: Y=11) until visible ore appears, then mines it.
+
+```bash
+# Toggle legit mine mode
+#legitMine
+
+# Set the Y level explored during legit mining (default: 11)
+#legitMineYLevel 11
+```
+
+### Relevant settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `legitMine` | `false` | Only mine ores that are currently visible |
+| `legitMineYLevel` | `11` | Y level to explore when `legitMine` is enabled |
+| `mineScanDroppedItems` | `true` | Count dropped items on the ground toward the target quantity |
+| `allowBreak` | `true` | Allow Baritone to break blocks at all |
+
+---
+
+## Farming
+
+The farm process automatically harvests mature crops, replants seeds, and applies bone meal. It runs continuously, re-checking the area for newly grown crops.
+
+```bash
+# Farm all crops reachable from the starting position
+#farm
+
+# Farm crops within 100 blocks of the starting position
+#farm 100
+
+# Farm crops within 50 blocks of a saved waypoint
+#farm 50 home
+```
+
+The `range` parameter limits how far Baritone will walk from the starting point (or waypoint). Omitting it removes the distance constraint.
+
+---
+
+## Following
+
+The follow process continuously updates Baritone's goal to stay near a target entity. Use `followRadius` to set how close Baritone tries to get — it stops moving once within that distance.
+
+```bash
+# Follow a specific player by name
+#follow player Steve
+
+# Follow any players currently in render distance
+#follow players
+
+# Follow any entities (mobs, animals, etc.)
+#follow entities
+
+# Follow a specific entity type
+#follow entity pig
+```
+
+### Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `followRadius` | `3` | Distance in blocks at which Baritone stops following and waits |
+
+<Warning>
+  Pig riding (`#follow entity pig`) attempts to mount and steer a pig. This is experimental and unreliable — do not depend on it for serious use.
+</Warning>
+
+---
+
+## Exploring
+
+The explore process paths toward the closest chunk to the origin that Baritone has never loaded, then repeats. It is useful for mapping large areas, pre-seeding the chunk cache, or generating terrain.
+
+```bash
+# Explore outward from a specific origin
+#explore 0 0
+
+# Explore outward from your current position
+#explore
+
+# Load a JSON list of specific chunks to explore
+#explorefilter filter.json
+
+# Invert the filter (explore everything NOT in the list)
+#explorefilter filter.json invert
+```
+
+The `filter.json` file contains a list of chunk coordinates. Pass the `invert` flag to explore all chunks that are **not** in the list instead.
+
+---
+
+## Building
+
+The builder process reads a schematic file and places every block to match it. Baritone handles pathfinding to each block position, acquiring blocks from its hotbar, and scaffolding as needed.
+
+```bash
+# Build from a file in minecraft/schematics/, origin at your feet
+#build myhouse.schematic
+
+# Build at absolute coordinates
+#build myhouse.schematic 100 64 200
+
+# Build using coordinates relative to your position
+#build myhouse.schematic ~ 69 ~-420
+
+# Build the schematic currently open in the Schematica mod
+#schematica
+```
+
+<Note>
+  Relative coordinates use the `~` prefix — `~` alone means your current coordinate on that axis, `~-420` means your current Z minus 420.
+</Note>
+
+### Key settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `buildInLayers` | `false` | Build in horizontal layers from bottom to top instead of all at once |
+| `buildRepeatDistance` | `0` | Repeat the schematic along an axis by this many blocks (0 = no repeat) |
+| `buildRepeatDirection` | — | The axis direction to repeat along (used with `buildRepeatDistance`) |
+| `acceptableThrowawayItems` | cobblestone, dirt, netherrack | Blocks Baritone may use as scaffold fill |
+| `allowInventory` | `false` | Allow Baritone to move blocks from inventory into the hotbar |
+
+For a full guide including supported file formats and layer-by-layer builds, see [Schematic builder](/features/schematic).
+
+---
+
+## Custom goal
+
+You can drive Baritone to any goal programmatically using `ICustomGoalProcess`. This is the lowest-level way to control movement and is the foundation the other processes build on.
+
+```java
+IBaritone baritone = BaritoneAPI.getProvider().getPrimaryBaritone();
+
+// Path to a specific X/Z coordinate
+baritone.getCustomGoalProcess().setGoalAndPath(new GoalXZ(10000, 20000));
+
+// Path to a specific block
+baritone.getCustomGoalProcess().setGoalAndPath(new GoalBlock(100, 64, 200));
+
+// Set a goal without starting immediately
+baritone.getCustomGoalProcess().setGoal(new GoalYLevel(64));
+// Start pathing later
+baritone.getPathingBehavior().requestPath();
+```
+
+For the full process API reference, see [Processes](/api/processes).

@@ -1,0 +1,87 @@
+---
+title: "Introduction"
+description: "Baritone is a high-performance Minecraft pathfinding bot and library — Google Maps for block game."
+---
+
+Baritone is a pathfinding bot and mod library for Minecraft. It uses a heavily optimized A\* algorithm to calculate paths in real time, handling block breaking, block placing, parkour, and more. You can control it through in-game chat commands or drive it programmatically through a clean Java API.
+
+It is the pathfinding system used in [Impact](https://impactclient.net/) since version 4.4, and is integrated into several other major utility clients.
+
+## What Baritone can do
+
+- **Navigate** to any coordinate, block type, or waypoint in the world
+- **Mine** specific block types automatically, with optional `legitMine` mode that only targets visible ores
+- **Farm** crops — harvest, replant, and bone-meal automatically
+- **Build** schematics from `.schematic` or Litematica files
+- **Fly with Elytra** through the Nether using fireworks, fully automated
+- **Follow** players or entities by name, type, or proximity
+- **Explore** the world outward from an origin, visiting chunks it has never seen before
+- **Dig tunnels**, path along axes, invert goals, manage waypoints, and more
+
+## Supported Minecraft versions
+
+Baritone supports Minecraft **1.12.2 through 1.21.x**. Releases are available for all major versions in that range. See the [version compatibility table](/installation#version-compatibility) on the Installation page for the exact mapping between Minecraft versions and Baritone releases.
+
+## Supported mod loaders
+
+Baritone is distributed as a standard mod for three loaders:
+
+| Loader | Supported |
+|--------|-----------|
+| Forge | Yes |
+| NeoForge | Yes (1.20.3+) |
+| Fabric | Yes |
+
+<Note>
+  The Fabric build may also work on Quilt, but this is not officially guaranteed.
+</Note>
+
+## Get started
+
+<Columns cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install Baritone as a Forge, NeoForge, or Fabric mod, or build from source.
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get moving in 60 seconds: navigate to coordinates, mine ore, and stop.
+  </Card>
+  <Card title="Commands" icon="terminal" href="/usage/commands">
+    Every chat command Baritone understands, with examples.
+  </Card>
+  <Card title="API Overview" icon="code" href="/api/overview">
+    Integrate Baritone into your own mod or utility client.
+  </Card>
+</Columns>
+
+## The `baritone.api` package
+
+Baritone ships two release jars: an API jar and a standalone jar. The **public API surface** is everything in the `baritone.api` package. If you are integrating Baritone into another mod, you should only use classes and interfaces from `baritone.api`.
+
+<Note>
+  Anything outside of `baritone.api` is not part of the supported public API. Those classes are obfuscated in the API release jar and subject to change without notice.
+</Note>
+
+A minimal example of using the API to path to an X/Z coordinate:
+
+```java
+BaritoneAPI.getSettings().allowSprint.value = true;
+BaritoneAPI.getSettings().primaryTimeoutMS.value = 2000L;
+
+BaritoneAPI.getProvider().getPrimaryBaritone().getCustomGoalProcess().setGoalAndPath(new GoalXZ(10000, 20000));
+```
+
+The Javadocs for the latest release are available at [baritone.leijurv.com](https://baritone.leijurv.com/).
+
+## Integrations
+
+Baritone is embedded in or integrated with several well-known Minecraft utility clients:
+
+| Client | Notes |
+|--------|-------|
+| [Impact](https://impactclient.net/) | Bundled since Impact 4.4; use `.b` prefix |
+| [Lambda](https://github.com/lambda-client/lambda) | Integrated as a module |
+| [Aristois](https://aristois.net/) | Available as an add-on |
+| [rootNET](https://rootnet.dev/) | Built-in integration |
+| [RusherHack](https://rusherhack.org/) | Built-in integration |
+| [ForgeHax](https://github.com/fr1kin/ForgeHax/) | Partial/unofficial integration |
+| [Future](https://futureclient.net/) | Integrated in some versions |

@@ -1,0 +1,311 @@
+---
+title: "Goals"
+description: "All Baritone Goal types with constructor signatures and use cases."
+---
+
+A `Goal` defines where Baritone should path to. You set a goal by passing a `Goal` instance to `ICustomGoalProcess`:
+
+```java
+// Set a goal and start pathing immediately
+baritone.getCustomGoalProcess().setGoalAndPath(new GoalBlock(100, 64, 200));
+
+// Set a goal without starting — call path() later
+baritone.getCustomGoalProcess().setGoal(new GoalXZ(1000, 500));
+baritone.getCustomGoalProcess().path();
+```
+
+## The `Goal` interface
+
+All goal types implement the `Goal` interface, which has two methods:
+
+```java
+public interface Goal {
+    // Returns true when position (x, y, z) satisfies this goal
+    boolean isInGoal(int x, int y, int z);
+
+    // Estimates the cost (in ticks) to reach the goal from (x, y, z)
+    double heuristic(int x, int y, int z);
+}
+```
+
+The heuristic must be an *underestimate* of the true cost for the A\* algorithm to find an optimal path. Every built-in goal type satisfies this requirement.
+
+---
+
+## Goal types
+
+### `GoalBlock`
+
+```java
+new GoalBlock(int x, int y, int z)
+new GoalBlock(BlockPos pos)
+```
+
+Paths to a specific block position. The player's feet must be at exactly `(x, y, z)` — in other words, the player stands *inside* that block coordinate.
+
+**When to use:** You know the exact block coordinate you want to reach — a waypoint, a chest, a spawn point.
+
+```java
+// Walk to x=100, y=64, z=200
+baritone.getCustomGoalProcess().setGoalAndPath(new GoalBlock(100, 64, 200));
+
+// Using a BlockPos
+BlockPos target = new BlockPos(100, 64, 200);
+baritone.getCustomGoalProcess().setGoalAndPath(new GoalBlock(target));
+```
+
+---
+
+### `GoalXZ`
+
+```java
+new GoalXZ(int x, int z)
+new GoalXZ(BetterBlockPos pos)
+```
+
+Paths to the given X and Z coordinates at *any* Y level. The goal is satisfied as soon as the player's X and Z match, regardless of height.
+
+**When to use:** Long-distance surface navigation where Y doesn't matter — traveling to another biome, following a road, or setting a waypoint in an unloaded chunk.
+
+```java
+// Travel to x=5000, z=-2000 at any height
+baritone.getCustomGoalProcess().setGoalAndPath(new GoalXZ(5000, -2000));
+```
+
+<Tip>
+  `GoalXZ` uses a combined Pythagorean-and-Manhattan heuristic that accounts for diagonal movement. It is more efficient than `GoalBlock` for long-range navigation because it never constrains the Y coordinate.
+</Tip>
+
+---
+
+### `GoalYLevel`
+
+```java
+new GoalYLevel(int level)
+```
+
+Paths to a specific Y coordinate. The goal is satisfied as soon as the player reaches that Y level, anywhere in the X/Z plane.
+
+**When to use:** Descending to diamond level, ascending to surface, or navigating vertically without caring about horizontal position.
+
+```java
+// Descend to Y=-59 (diamond level in 1.18+)
+baritone.getCustomGoalProcess().setGoalAndPath(new GoalYLevel(-59));
+
+// Ascend to surface level
+baritone.getCustomGoalProcess().setGoalAndPath(new GoalYLevel(64));
+```
+
+---
+
+### `GoalTwoBlocks`
+
+```java
+new GoalTwoBlocks(int x, int y, int z)
+new GoalTwoBlocks(BlockPos pos)
+```
+
+Satisfied when the player is standing at either foot level (`y`) or eye level (`y - 1`) of the target position. In practice this means the player's feet land at `(x, y, z)` **or** `(x, y-1, z)`.
+
+**When to use:** Mining a block — you want to stand in or directly below the target block to reach it. This is how `IMineProcess` targets individual ore blocks.
+
+```java
+// Stand in or directly below the ore at (50, 12, 80)
+baritone.getCustomGoalProcess().setGoalAndPath(new GoalTwoBlocks(50, 12, 80));
+```
+
+---
+
+### `GoalGetToBlock`
+
+```java
+new GoalGetToBlock(BlockPos pos)
+```
+
+Satisfied when the player is adjacent to, directly below, or on top of the target block — within one block in Manhattan distance (accounting for the fact that standing one block below counts as adjacent). Does not require the player to occupy the target position itself.
+
+**When to use:** Reaching a block to interact with it — opening a chest, reading a sign, activating a button. Use this instead of `GoalBlock` when you want to *reach* a block, not stand *inside* its coordinate.
+
+```java
+BlockPos chest = new BlockPos(10, 64, 10);
+baritone.getCustomGoalProcess().setGoalAndPath(new GoalGetToBlock(chest));
+```
+
+<Note>
+  `GoalGetToBlock` only accepts a `BlockPos` constructor — there is no `(int x, int y, int z)` overload. Wrap raw coordinates: `new GoalGetToBlock(new BlockPos(x, y, z))`.
+</Note>
+
+---
+
+### `GoalNear`
+
+```java
+new GoalNear(BlockPos pos, int range)
+```
+
+Satisfied when the player is within `range` blocks (Euclidean 3D distance) of the target position.
+
+**When to use:** Following an entity — the `IFollowProcess` continuously updates a `GoalNear` with the entity's current position. Also useful when you need to get "close enough" rather than exactly to a position.
+
+```java
+// Get within 5 blocks of (100, 64, 200)
+BlockPos entityPos = new BlockPos(100, 64, 200);
+baritone.getCustomGoalProcess().setGoalAndPath(new GoalNear(entityPos, 5));
+```
+
+---
+
+### `GoalAxis`
+
+```java
+new GoalAxis()
+```
+
+Satisfied when the player reaches `x=0`, `z=0`, or the `|x|==|z|` diagonal axis, at the Y level configured by `BaritoneAPI.getSettings().axisHeight` (default: 120).
+
+**When to use:** Nether highway navigation — aligning to the main axes or diagonal axes at a specific Y level. Equivalent to the `#axis` chat command.
+
+```java
+// Head to the nearest nether highway axis at Y=120
+BaritoneAPI.getSettings().axisHeight.value = 120;
+baritone.getCustomGoalProcess().setGoalAndPath(new GoalAxis());
+```
+
+<Tip>
+  Change `axisHeight` before setting the goal to target a different Y level, such as Y=128 for highways above lava.
+</Tip>
+
+---
+
+### `GoalComposite`
+
+```java
+new GoalComposite(Goal... goals)
+```
+
+Satisfied when *any one* of the provided goals is satisfied. The heuristic returns the minimum distance across all sub-goals, so the pather naturally routes toward whichever goal is closest.
+
+**When to use:** Mining — target every ore block in loaded chunks simultaneously so the pather picks the nearest one. Also useful for reaching any of several waypoints.
+
+```java
+// Path to whichever of these two positions is closer
+Goal[] goals = new Goal[] {
+    new GoalBlock(100, 64, 200),
+    new GoalBlock(300, 64, 400)
+};
+baritone.getCustomGoalProcess().setGoalAndPath(new GoalComposite(goals));
+```
+
+```java
+// Mine: build a composite goal from all known ore positions
+List<BlockPos> orePositions = findOresInCache();
+Goal[] oreGoals = orePositions.stream()
+    .map(pos -> new GoalTwoBlocks(pos))
+    .toArray(Goal[]::new);
+baritone.getCustomGoalProcess().setGoalAndPath(new GoalComposite(oreGoals));
+```
+
+---
+
+### `GoalInverted`
+
+```java
+new GoalInverted(Goal goal)
+```
+
+Wraps any goal and reverses its heuristic, causing Baritone to move *away from* the wrapped goal rather than toward it. `isInGoal` always returns `false`, so it never terminates on its own — you must cancel it manually.
+
+**When to use:** The `#invert` command — run away from a player, flee from a position, or move away from a Y level. Pair with any goal type.
+
+```java
+// Run away from (100, 64, 200)
+Goal flee = new GoalInverted(new GoalBlock(100, 64, 200));
+baritone.getCustomGoalProcess().setGoalAndPath(flee);
+
+// Move away from Y=-59
+Goal ascend = new GoalInverted(new GoalYLevel(-59));
+baritone.getCustomGoalProcess().setGoalAndPath(ascend);
+```
+
+<Warning>
+  `GoalInverted` never satisfies itself — `isInGoal` always returns `false`. You must call `baritone.getPathingBehavior().cancelEverything()` to stop.
+</Warning>
+
+---
+
+### `GoalRunAway`
+
+```java
+new GoalRunAway(double distance, BlockPos... from)
+new GoalRunAway(double distance, Integer maintainY, BlockPos... from)
+```
+
+Satisfied when the player is at least `distance` blocks away (in XZ) from *all* of the given positions. Useful for retreating from combat or escaping a dangerous area.
+
+The optional `maintainY` parameter pins the player to a specific Y level while fleeing. When omitted, Y is unconstrained.
+
+**When to use:** Automated PvP retreat, fleeing from mob spawners, getting away from lava.
+
+```java
+// Run at least 50 blocks away from (100, 64, 200)
+BlockPos threat = new BlockPos(100, 64, 200);
+baritone.getCustomGoalProcess().setGoalAndPath(new GoalRunAway(50, threat));
+
+// Retreat from multiple threats, staying at Y=64
+baritone.getCustomGoalProcess().setGoalAndPath(
+    new GoalRunAway(30, 64, new BlockPos(0, 64, 0), new BlockPos(50, 64, 50))
+);
+```
+
+<Warning>
+  Like `GoalInverted`, `GoalRunAway` is only satisfied once the player is far enough away. If you need to flee indefinitely, cancel it manually with `cancelEverything()`.
+</Warning>
+
+---
+
+### `GoalStrictDirection`
+
+```java
+new GoalStrictDirection(BlockPos origin, Direction direction)
+```
+
+Causes Baritone to dig a tunnel in exactly the given `Direction` from `origin`, strongly penalizing any lateral or vertical deviation from the straight-line axis. The goal is **never** in-goal (`isInGoal` always returns `false`) — it runs until cancelled.
+
+**When to use:** Digging perfectly straight tunnels. If Baritone has to deviate to go around an obstacle, it will try to return to the original axis before continuing forward.
+
+```java
+import net.minecraft.core.Direction;
+
+BlockPos start = mc.player.blockPosition();
+baritone.getCustomGoalProcess().setGoalAndPath(
+    new GoalStrictDirection(start, Direction.NORTH)
+);
+```
+
+<Warning>
+  `GoalStrictDirection` never terminates on its own. Call `baritone.getPathingBehavior().cancelEverything()` when done.
+</Warning>
+
+---
+
+## Combining goals
+
+You can compose goals freely. Here is a complete example that targets multiple positions using `GoalComposite`:
+
+```java
+import baritone.api.BaritoneAPI;
+import baritone.api.pathing.goals.Goal;
+import baritone.api.pathing.goals.GoalBlock;
+import baritone.api.pathing.goals.GoalComposite;
+
+// Target any of three outpost locations — Baritone picks the nearest
+Goal[] goals = new Goal[] {
+    new GoalBlock(100, 64, 200),
+    new GoalBlock(300, 64, 400),
+    new GoalBlock(-500, 64, 100)
+};
+BaritoneAPI.getProvider()
+    .getPrimaryBaritone()
+    .getCustomGoalProcess()
+    .setGoalAndPath(new GoalComposite(goals));
+```

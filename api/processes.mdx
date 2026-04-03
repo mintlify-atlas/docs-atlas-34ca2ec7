@@ -1,0 +1,387 @@
+---
+title: "Processes"
+description: "Control Baritone's automation processes via the Java API."
+---
+
+Baritone's behavior is driven by *processes*. At any moment, exactly one process controls pathing. If multiple processes want control simultaneously, the one with the highest `priority()` wins, and lower-priority processes receive an `onLostControl()` call.
+
+You access all processes through the `IBaritone` instance:
+
+```java
+import baritone.api.BaritoneAPI;
+import baritone.api.IBaritone;
+
+IBaritone baritone = BaritoneAPI.getProvider().getPrimaryBaritone();
+```
+
+---
+
+## `IBaritoneProcess` — base interface
+
+Every process implements `IBaritoneProcess`:
+
+| Method | Description |
+|--------|-------------|
+| `boolean isActive()` | Returns `true` when this process wants control. |
+| `PathingCommand onTick(boolean calcFailed, boolean isSafeToCancel)` | Called each tick when this process has control. |
+| `boolean isTemporary()` | If `true`, losing control does not call `onLostControl` on other processes. |
+| `void onLostControl()` | Called when another process takes control — effectively cancels the process. |
+| `double priority()` | Priority value; higher wins. Default is `-1`. |
+| `String displayName()` | Human-readable name, suitable for a HUD. |
+
+---
+
+## `ICustomGoalProcess`
+
+Access via `baritone.getCustomGoalProcess()`.
+
+The most general-purpose process. You provide a `Goal` and Baritone paths to it.
+
+```java
+import baritone.api.pathing.goals.Goal;
+import baritone.api.pathing.goals.GoalBlock;
+import baritone.api.process.ICustomGoalProcess;
+
+ICustomGoalProcess cgp = baritone.getCustomGoalProcess();
+```
+
+| Method | Description |
+|--------|-------------|
+| `void setGoal(Goal goal)` | Sets the goal without starting the pather. |
+| `void path()` | Starts pathing toward the current goal. |
+| `void setGoalAndPath(Goal goal)` | Sets the goal *and* starts pathing immediately. Equivalent to calling `setGoal` then `path`. |
+| `Goal getGoal()` | Returns the current active goal, or `null` if inactive. |
+| `Goal mostRecentGoal()` | Returns the most recently set goal; persists even after `onLostControl()`. |
+
+```java
+// Navigate to a block, starting immediately
+cgp.setGoalAndPath(new GoalBlock(100, 64, 200));
+
+// Set a goal now, start later
+cgp.setGoal(new GoalXZ(5000, -2000));
+// ... some time later
+cgp.path();
+```
+
+---
+
+## `IMineProcess`
+
+Access via `baritone.getMineProcess()`.
+
+Searches the chunk cache (and the world, if `legitMine` is off) for the specified block types and mines them. Uses a `GoalComposite` internally to target the closest matching block.
+
+```java
+import baritone.api.process.IMineProcess;
+import baritone.api.utils.BlockOptionalMeta;
+import baritone.api.utils.BlockOptionalMetaLookup;
+import net.minecraft.world.level.block.Blocks;
+
+IMineProcess mine = baritone.getMineProcess();
+```
+
+| Method | Description |
+|--------|-------------|
+| `void mineByName(String... blocks)` | Mine blocks indefinitely by registry name (e.g. `"diamond_ore"`). |
+| `void mineByName(int quantity, String... blocks)` | Mine until `quantity` items are collected. |
+| `void mine(BlockOptionalMetaLookup filter)` | Mine using a pre-built block lookup. |
+| `void mine(int quantity, BlockOptionalMetaLookup filter)` | Mine with a quantity limit using a block lookup. |
+| `void mine(BlockOptionalMeta... boms)` | Mine using `BlockOptionalMeta` instances. |
+| `void mine(int quantity, BlockOptionalMeta... boms)` | Mine with a quantity limit using `BlockOptionalMeta` instances. |
+| `void mine(Block... blocks)` | Mine using Minecraft `Block` objects directly. |
+| `void mine(int quantity, Block... blocks)` | Mine with a quantity limit using `Block` objects. |
+| `void cancel()` | Stop mining. |
+
+```java
+// Mine diamond ore indefinitely
+mine.mineByName("diamond_ore");
+
+// Mine exactly 64 iron ore, then stop
+mine.mineByName(64, "iron_ore");
+
+// Mine using Block objects
+mine.mine(Blocks.ANCIENT_DEBRIS);
+
+// Mine multiple block types at once
+mine.mine(Blocks.DIAMOND_ORE, Blocks.DEEPSLATE_DIAMOND_ORE);
+
+// Stop mining
+mine.cancel();
+```
+
+<Note>
+  By default, `IMineProcess` uses the chunk cache to locate ores without actually seeing them (X-ray style). Set `BaritoneAPI.getSettings().legitMine.value = true` to restrict it to only mine blocks it can directly see.
+</Note>
+
+---
+
+## `IBuilderProcess`
+
+Access via `baritone.getBuilderProcess()`.
+
+Builds structures from schematics. Supports `.schematic`, `.nbt`, and `.litematic` formats. Can also clear areas.
+
+```java
+import baritone.api.process.IBuilderProcess;
+import baritone.api.schematic.ISchematic;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Vec3i;
+import java.io.File;
+
+IBuilderProcess builder = baritone.getBuilderProcess();
+```
+
+| Method | Description |
+|--------|-------------|
+| `void build(String name, ISchematic schematic, Vec3i origin)` | Build from an `ISchematic` object at the given origin. |
+| `boolean build(String name, File schematic, Vec3i origin)` | Build from a schematic file. Returns `false` if the file cannot be loaded. |
+| `void buildOpenSchematic()` | Build whatever schematic is currently open in the game (e.g. via Structure Block preview). |
+| `void buildOpenLitematic(int i)` | Build the `i`-th placement from the currently open Litematica schematic. |
+| `void pause()` | Pause the current build. |
+| `void resume()` | Resume a paused build. |
+| `boolean isPaused()` | Returns `true` if the build is currently paused. |
+| `void clearArea(BlockPos corner1, BlockPos corner2)` | Clear all blocks in the bounding box defined by two corners. |
+| `List<BlockState> getApproxPlaceable()` | Returns block states the builder can currently place. Updated each tick while active. |
+| `Optional<Integer> getMinLayer()` | Returns the lower layer bound when `buildInLayers` is enabled. |
+| `Optional<Integer> getMaxLayer()` | Returns the upper layer bound when `buildInLayers` is enabled. |
+
+```java
+// Build a schematic file at origin (0, 64, 0)
+File schematicFile = new File(
+    Minecraft.getInstance().gameDirectory,
+    "schematics/my_house.schematic"
+);
+boolean loaded = builder.build("my_house", schematicFile, new BlockPos(0, 64, 0));
+if (!loaded) {
+    System.out.println("Failed to load schematic file");
+}
+
+// Clear a 10x10x10 area
+builder.clearArea(new BlockPos(0, 60, 0), new BlockPos(9, 69, 9));
+
+// Pause and resume
+builder.pause();
+// ... do something else ...
+builder.resume();
+```
+
+---
+
+## `IFollowProcess`
+
+Access via `baritone.getFollowProcess()`.
+
+Continuously follows entities that match a predicate. Updates the goal each tick based on entity position.
+
+```java
+import baritone.api.process.IFollowProcess;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.animal.Animal;
+
+IFollowProcess follow = baritone.getFollowProcess();
+```
+
+| Method | Description |
+|--------|-------------|
+| `void follow(Predicate<Entity> filter)` | Follow all entities matching the predicate. |
+| `void pickup(Predicate<ItemStack> filter)` | Pick up item entities matching the predicate. |
+| `List<Entity> following()` | Returns entities currently being followed. `null` if not active; empty if nothing matches. |
+| `Predicate<Entity> currentFilter()` | Returns the current entity filter predicate. |
+| `void cancel()` | Stop following. |
+
+```java
+// Follow all players within range
+follow.follow(entity -> entity instanceof Player);
+
+// Follow animals (sheep, cows, etc.)
+follow.follow(entity -> entity instanceof Animal);
+
+// Follow a specific player by name
+String targetName = "Steve";
+follow.follow(entity -> entity instanceof Player p
+    && p.getName().getString().equals(targetName));
+
+// Pick up diamonds lying on the ground
+follow.pickup(stack -> stack.is(Items.DIAMOND));
+
+// Check who is currently being followed
+List<Entity> targets = follow.following();
+
+// Stop
+follow.cancel();
+```
+
+<Tip>
+  Control how close Baritone follows with `BaritoneAPI.getSettings().followRadius.value` (default: `3`). Set `followOffsetDistance` and `followOffsetDirection` to maintain a specific offset from the target.
+</Tip>
+
+---
+
+## `IExploreProcess`
+
+Access via `baritone.getExploreProcess()`.
+
+Systematically explores unloaded chunks outward from a center point.
+
+```java
+import baritone.api.process.IExploreProcess;
+import java.nio.file.Path;
+
+IExploreProcess explore = baritone.getExploreProcess();
+```
+
+| Method | Description |
+|--------|-------------|
+| `void explore(int centerX, int centerZ)` | Start exploring outward from the given chunk-coordinate center. |
+| `void applyJsonFilter(Path path, boolean invert) throws Exception` | Load a JSON file of chunk coordinates to explore (or skip if `invert` is `true`). |
+
+```java
+// Explore outward from the origin
+explore.explore(0, 0);
+
+// Explore outward from the player's current chunk
+BlockPos playerPos = Minecraft.getInstance().player.blockPosition();
+explore.explore(playerPos.getX() >> 4, playerPos.getZ() >> 4);
+
+// Apply a JSON filter to only explore specific chunks
+explore.applyJsonFilter(Path.of("chunks_to_visit.json"), false);
+```
+
+---
+
+## `IFarmProcess`
+
+Access via `baritone.getFarmProcess()`.
+
+Harvests mature crops and replants them within a configurable range.
+
+```java
+import baritone.api.process.IFarmProcess;
+import net.minecraft.core.BlockPos;
+
+IFarmProcess farm = baritone.getFarmProcess();
+```
+
+| Method | Description |
+|--------|-------------|
+| `void farm()` | Farm all nearby crops with no range limit. |
+| `void farm(int range)` | Farm crops within `range` blocks of the current position. |
+| `void farm(int range, BlockPos pos)` | Farm crops within `range` blocks of `pos`. |
+
+```java
+// Farm all crops in the vicinity
+farm.farm();
+
+// Farm within a 50-block radius
+farm.farm(50);
+
+// Farm within 30 blocks of a fixed farm center
+farm.farm(30, new BlockPos(0, 64, 0));
+```
+
+<Tip>
+  Enable `BaritoneAPI.getSettings().replantCrops.value = true` (the default) to have Baritone replant after harvesting. Enable `replantNetherWart` separately to include nether wart.
+</Tip>
+
+---
+
+## `IGetToBlockProcess`
+
+Access via `baritone.getGetToBlockProcess()`.
+
+Paths to be adjacent to a specific block type. Rescans the world periodically to avoid being fooled by stale chunk cache data.
+
+```java
+import baritone.api.process.IGetToBlockProcess;
+import baritone.api.utils.BlockOptionalMeta;
+import net.minecraft.world.level.block.Blocks;
+
+IGetToBlockProcess getTo = baritone.getGetToBlockProcess();
+```
+
+| Method | Description |
+|--------|-------------|
+| `void getToBlock(BlockOptionalMeta block)` | Path to be adjacent to the nearest matching block. |
+| `void getToBlock(Block block)` | Convenience overload using a `Block` directly. |
+| `boolean blacklistClosest()` | Marks the closest matching block as unreachable and tries the next one. Returns `true` if successful. |
+
+```java
+// Get to the nearest crafting table
+getTo.getToBlock(Blocks.CRAFTING_TABLE);
+
+// Get to a specific block with metadata
+getTo.getToBlock(new BlockOptionalMeta(Blocks.CHEST));
+
+// If stuck, blacklist the current target and try the next one
+getTo.blacklistClosest();
+```
+
+---
+
+## `IElytraProcess`
+
+Access via `baritone.getElytraProcess()`.
+
+Automates elytra flight, including firework deployment, terrain avoidance, and landing. Requires the native elytra library to be loaded.
+
+```java
+import baritone.api.process.IElytraProcess;
+import baritone.api.pathing.goals.Goal;
+import net.minecraft.core.BlockPos;
+
+IElytraProcess elytra = baritone.getElytraProcess();
+```
+
+| Method | Description |
+|--------|-------------|
+| `boolean isLoaded()` | Returns `true` if the native elytra library loaded successfully and elytra flight is available. |
+| `void pathTo(BlockPos destination)` | Fly to a specific block position. |
+| `void pathTo(Goal destination)` | Fly toward a `Goal`. |
+| `BlockPos currentDestination()` | Returns the current flight destination, or `null` if not active. |
+| `List<BetterBlockPos> getPath()` | Returns the current flight path. Empty if not active or no path calculated yet. |
+| `void repackChunks()` | Forces a repack of all chunks into the elytra pathfinder's cache. |
+| `void resetState()` | Resets internal state while keeping the same destination — Baritone continues flying. |
+| `boolean isSafeToCancel()` | Returns `true` if it is currently safe to cancel elytra flight (e.g., player is on the ground). |
+
+```java
+// Check elytra is available before using
+if (!elytra.isLoaded()) {
+    System.out.println("Elytra process native library not loaded");
+    return;
+}
+
+// Fly to coordinates
+elytra.pathTo(new BlockPos(10000, 128, 10000));
+
+// Fly toward a custom goal
+elytra.pathTo(new GoalXZ(10000, 10000));
+
+// Check where we're headed
+BlockPos dest = elytra.currentDestination();
+```
+
+<Warning>
+  You must accept elytra terms and conditions before the process will activate: `BaritoneAPI.getSettings().elytraTermsAccepted.value = true`. The native library must also be present.
+</Warning>
+
+---
+
+## Stopping a process
+
+To stop whatever Baritone is currently doing, cancel via `IPathingBehavior`:
+
+```java
+// Stop everything immediately — preferred approach
+baritone.getPathingBehavior().cancelEverything();
+```
+
+You can also call `onLostControl()` directly on a specific process, but this is rarely needed outside of implementing a custom process. `cancelEverything()` is the safe, general-purpose way to stop:
+
+```java
+// Calling onLostControl on a specific process — rarely needed
+baritone.getMineProcess().onLostControl();
+```
+
+<Note>
+  `cancel()` is a convenience default defined on `IMineProcess`, `IFollowProcess`, and similar interfaces. It delegates to `onLostControl()`. Using `cancelEverything()` on `IPathingBehavior` is still preferred because it also clears the path executor state.
+</Note>

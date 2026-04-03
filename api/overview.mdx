@@ -1,0 +1,118 @@
+---
+title: 'API Overview'
+description: 'Understand the structure of the Baritone Java API.'
+---
+
+Baritone exposes a clean Java API through the `baritone.api` package. Only classes in this package are guaranteed stable and are included in the API release jar. Internal packages (`baritone.*` outside of `baritone.api`) are obfuscated in non-API builds — do not depend on them.
+
+<Note>
+  Usage of anything located outside of the `baritone.api` package is not supported by the API release jar. The `baritone-api-*` jar exposes only the public API surface.
+</Note>
+
+## Architecture
+
+The API is organized into a small hierarchy of core types. Understanding how they relate to each other is the foundation for any integration.
+
+### Core entry points
+
+<Columns cols={2}>
+  <Card title="BaritoneAPI" icon="key">
+    The static entry point for the entire API. Provides access to the global `IBaritoneProvider` and the shared `Settings` instance via `BaritoneAPI.getProvider()` and `BaritoneAPI.getSettings()`.
+  </Card>
+  <Card title="IBaritoneProvider" icon="layer-group">
+    Factory and registry for `IBaritone` instances. Returns the primary instance for the local player, all active instances, or instances looked up by `LocalPlayer`, `Minecraft`, or `ClientPacketListener`.
+  </Card>
+  <Card title="IBaritone" icon="robot">
+    The main per-player interface. Gives you access to every process, behavior, world cache, event bus, input handler, selection manager, and command manager for a single player or bot.
+  </Card>
+  <Card title="Settings" icon="sliders">
+    A singleton holding roughly 100 configuration fields, shared across all `IBaritone` instances. Fields are typed `Setting<T>` and read or written through the `.value` property.
+  </Card>
+</Columns>
+
+### Processes
+
+Each process controls what Baritone is currently trying to accomplish. Only one process can hold control at a time — the one with the highest `priority()` value wins.
+
+| Interface | Accessed via | Purpose |
+|---|---|---|
+| `ICustomGoalProcess` | `getCustomGoalProcess()` | Path to any `Goal` you provide |
+| `IMineProcess` | `getMineProcess()` | Find and mine specific blocks |
+| `IBuilderProcess` | `getBuilderProcess()` | Build from a schematic |
+| `IFollowProcess` | `getFollowProcess()` | Follow an entity |
+| `IExploreProcess` | `getExploreProcess()` | Explore uncharted chunks |
+| `IFarmProcess` | `getFarmProcess()` | Harvest and replant crops |
+| `IGetToBlockProcess` | `getGetToBlockProcess()` | Navigate adjacent to a block type |
+| `IElytraProcess` | `getElytraProcess()` | Fly with elytra using fireworks |
+
+### Goals
+
+Goals are the targets passed to `ICustomGoalProcess`. All goal classes implement the `Goal` interface and live in `baritone.api.pathing.goals`.
+
+| Class | Description |
+|---|---|
+| `GoalBlock` | Exact block position |
+| `GoalXZ` | Any Y at target X/Z coordinates |
+| `GoalYLevel` | Any X/Z at target Y level |
+| `GoalNear` | Within N blocks of a position |
+| `GoalGetToBlock` | Navigate to be adjacent to a specific block |
+| `GoalComposite` | Reach any one of multiple goals |
+| `GoalInverted` | Move away from a goal |
+| `GoalRunAway` | Flee from a set of positions |
+| `GoalAxis` | Stay on the X or Z axis |
+| `GoalTwoBlocks` | Occupy two specific stacked blocks |
+| `GoalStrictDirection` | Dig a tunnel in a strict direction, returning to the origin axis if deviated |
+
+### Behaviors and utilities
+
+| Interface | Accessed via | Description |
+|---|---|---|
+| `IPathingBehavior` | `getPathingBehavior()` | Controls and queries path execution; call `cancelEverything()` to stop |
+| `ILookBehavior` | `getLookBehavior()` | Controls where the player looks |
+| `IWorldProvider` | `getWorldProvider()` | Access to the cached world and chunk data |
+| `IEventBus` | `getGameEventHandler()` | Register `IGameEventListener` implementations to receive game events |
+| `IInputOverrideHandler` | `getInputOverrideHandler()` | Override keyboard/mouse input programmatically |
+| `ISelectionManager` | `getSelectionManager()` | Manage block selections |
+| `ICommandManager` | `getCommandManager()` | Register custom chat commands |
+| `IPathingControlManager` | `getPathingControlManager()` | Manage which process currently controls pathing |
+
+## Quick example
+
+The following example from the Baritone README shows how to configure two settings and then start pathing toward an X/Z goal:
+
+```java
+BaritoneAPI.getSettings().allowSprint.value = true;
+BaritoneAPI.getSettings().primaryTimeoutMS.value = 2000L;
+
+BaritoneAPI.getProvider().getPrimaryBaritone().getCustomGoalProcess().setGoalAndPath(new GoalXZ(10000, 20000));
+```
+
+## License
+
+Baritone is licensed under the **GNU Lesser General Public License v3.0 (LGPL-3.0)**. You can use it as a library in proprietary mods provided that Baritone itself remains open source and any modifications you make to Baritone are also released under the LGPL.
+
+## Explore the API
+
+<Columns cols={3}>
+  <Card title="Developer quick start" icon="rocket" href="/api/getting-started">
+    Add the dependency and write your first integration in minutes.
+  </Card>
+  <Card title="Goals" icon="crosshairs" href="/api/goals">
+    All goal types, constructors, and when to use each one.
+  </Card>
+  <Card title="Processes" icon="gears" href="/api/processes">
+    How to start, stop, and monitor each built-in process.
+  </Card>
+</Columns>
+
+<Columns cols={3}>
+  <Card title="Settings reference" icon="sliders" href="/api/settings-reference">
+    Every `Settings` field with its type, default value, and description.
+  </Card>
+  <Card title="Events" icon="bell" href="/api/events">
+    Register listeners for tick, path, block change, and render events.
+  </Card>
+  <Card title="Integration guide" icon="puzzle" href="/api/integration-guide">
+    Best practices for embedding Baritone in a mod or utility client.
+  </Card>
+</Columns>

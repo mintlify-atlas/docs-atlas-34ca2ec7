@@ -1,0 +1,126 @@
+---
+title: "Troubleshooting"
+description: "Solutions to common Baritone issues."
+---
+
+<AccordionGroup>
+  <Accordion title="Baritone doesn't respond to chat commands">
+    Work through these checks in order:
+
+    **1. Verify Baritone is installed.**
+    Look for a `baritone/` folder inside your Minecraft directory. If it doesn't exist, Baritone isn't installed (or didn't initialize correctly on this launch).
+
+    **2. Check your prefix.**
+    Impact disables direct chat control — typing without a prefix does nothing and sends the text publicly. Use the `#` prefix:
+
+    ```bash
+    #goal 0 64 0
+    ```
+
+    **3. Check if `chatControl` was saved as `false`.**
+    If you launched Impact even once, it writes `chatControl false` to `minecraft/baritone/settings.txt`, and that setting persists in every client you use afterwards. To fix it, open `minecraft/baritone/settings.txt`, remove the line `chatControl false`, and restart your client.
+
+    **4. Make sure you haven't disabled all control methods.**
+    If both `chatControl` and `prefixControl` are off, there is no way to send commands. Delete `minecraft/baritone/settings.txt` and relaunch to restore defaults.
+
+    <Warning>
+      Never disable both `chatControl` and `prefixControl` at the same time unless you have an alternative API-based control method in place.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="Why can I do `.goto x z` in Impact but not in other clients?">
+    `.goto` is a **custom Impact command** — it is not part of Baritone. Impact added it as a shortcut on top of Baritone's API.
+
+    The equivalent Baritone command works everywhere:
+
+    ```bash
+    #goto <x> <z>
+    ```
+
+    Similarly, `-path to x z` in KAMI is a KAMI-specific command, not a Baritone one.
+  </Accordion>
+
+  <Accordion title="Baritone gets stuck">
+    Try these steps in order:
+
+    **Stop and reissue the command.**
+    ```bash
+    #stop
+    ```
+    Then re-run whatever command you were using (e.g. `#goto`, `#mine`).
+
+    **Force cancel if `#stop` doesn't respond.**
+    ```bash
+    #forcecancel
+    ```
+
+    **Check that block breaking is enabled.**
+    If the path requires breaking blocks, `allowBreak` must be on:
+    ```bash
+    #allowBreak
+    ```
+    (This toggles it — check the chat response to see whether it's now `true` or `false`.)
+
+    **Check render distance and re-cache chunks.**
+    A very low render distance can cause pathing failures because Baritone can't see far enough ahead. Increase your render distance, or force a chunk re-cache:
+    ```bash
+    #repack
+    ```
+  </Accordion>
+
+  <Accordion title="Baritone is slow or calculating for a long time">
+    **Lower `primaryTimeoutMS` for faster path calculations.**
+    The default is 500ms. Reducing it makes Baritone commit to a path sooner, though it may not be the most optimal route.
+
+    ```bash
+    #primaryTimeoutMS 250
+    ```
+
+    **Disable `renderCachedChunks` if it's enabled.**
+    This setting causes every chunk to be compiled twice and can seriously hurt FPS and CPU performance.
+
+    ```bash
+    #renderCachedChunks
+    ```
+
+    (This toggles it off if it was on — confirm in the chat response.)
+  </Accordion>
+
+  <Accordion title="Settings I changed in Impact don't apply in other clients">
+    Baritone stores all settings in `minecraft/baritone/settings.txt`. This file is shared across all clients that use the same Minecraft directory. Any changes Impact makes — including disabling `chatControl` — are written to that file and apply everywhere.
+
+    To reset to defaults, delete or edit that file:
+    - **Reset everything**: delete `minecraft/baritone/settings.txt` and relaunch.
+    - **Undo a specific setting**: open the file in a text editor, find the relevant line (e.g. `chatControl false`), and remove it.
+  </Accordion>
+
+  <Accordion title="I accidentally disabled all control methods">
+    If both `chatControl` and `prefixControl` are `false`, you have no way to issue commands through chat.
+
+    **Fix**: delete `minecraft/baritone/settings.txt` from your Minecraft directory and relaunch the game. Baritone will recreate the file with all default settings, restoring both control methods.
+  </Accordion>
+
+  <Accordion title="Baritone mines the wrong blocks">
+    **Use the correct Minecraft block ID.**
+    The `#mine` command requires the exact Minecraft block ID, not the item name:
+
+    ```bash
+    #mine diamond_ore       # correct
+    #mine deepslate_diamond_ore  # also correct (different block)
+    ```
+
+    Common mistakes: `diamond` instead of `diamond_ore`, `iron` instead of `iron_ore`.
+
+    **Enable `legitMine` to only mine visible ores.**
+    Without `legitMine`, Baritone uses its chunk cache to locate ores, which can look like X-ray. With `legitMine` enabled, it only mines ores it can actually see:
+
+    ```bash
+    #legitMine
+    ```
+
+    You can also adjust `legitMineYLevel` to control which depth it explores when searching:
+    ```bash
+    #legitMineYLevel -59
+    ```
+  </Accordion>
+</AccordionGroup>

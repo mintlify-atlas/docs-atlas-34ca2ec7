@@ -1,0 +1,121 @@
+---
+title: 'Developer Quick Start'
+description: 'Add Baritone as a dependency and write your first API integration.'
+---
+
+This guide walks you through adding Baritone to your mod and making your first API calls. You will need Baritone already installed in the mod environment — your mod and Baritone run in the same JVM, so no network or IPC is involved.
+
+<Info>
+  These steps assume a Forge, NeoForge, or Fabric mod project using Gradle. The API jar filename varies by loader and Minecraft version — adjust accordingly.
+</Info>
+
+<Steps>
+  <Step title="Add the dependency">
+    Download the correct `baritone-api-*-VERSION.jar` for your mod loader and Minecraft version from the [Baritone releases page](https://github.com/cabaletta/baritone/releases) and place it in a `libs/` directory inside your project.
+
+    Then add it to your `build.gradle` as a compile-only dependency:
+
+    ```groovy build.gradle
+    dependencies {
+        compileOnly files('libs/baritone-api-forge-1.21.1-1.11.2.jar')
+    }
+    ```
+
+    <Note>
+      Use `compileOnly` because Baritone will be present at runtime via the mod loader. Adding it as `implementation` would bundle a second copy into your mod jar unnecessarily.
+    </Note>
+  </Step>
+
+  <Step title="Import the API classes">
+    Add these imports to any class that interacts with Baritone:
+
+    ```java
+    import baritone.api.BaritoneAPI;
+    import baritone.api.IBaritone;
+    import baritone.api.pathing.goals.GoalXZ;
+    import baritone.api.process.ICustomGoalProcess;
+    ```
+
+    All public API types live under `baritone.api`. Do not import from any other `baritone.*` sub-package — those are obfuscated in API builds.
+  </Step>
+
+  <Step title="Get the primary Baritone instance">
+    `IBaritoneProvider` manages all active `IBaritone` instances. Call `getPrimaryBaritone()` to get the instance that controls the local player:
+
+    ```java
+    IBaritone baritone = BaritoneAPI.getProvider().getPrimaryBaritone();
+    ```
+
+    This instance is persistent for the lifetime of the game session. You do not need to re-fetch it on every tick.
+  </Step>
+
+  <Step title="Configure settings (optional)">
+    `BaritoneAPI.getSettings()` returns the shared `Settings` singleton. Every field is a `Setting<T>` — read or write its `.value` property:
+
+    ```java
+    BaritoneAPI.getSettings().allowSprint.value = true;
+    BaritoneAPI.getSettings().primaryTimeoutMS.value = 2000L;
+    ```
+
+    Settings apply globally to all `IBaritone` instances. Changes take effect on the next tick.
+  </Step>
+
+  <Step title="Set a goal and start pathing">
+    Retrieve the `ICustomGoalProcess` from your `IBaritone` instance. Call `setGoalAndPath(Goal)` to set the target and immediately begin path calculation:
+
+    ```java
+    ICustomGoalProcess goalProcess = baritone.getCustomGoalProcess();
+    goalProcess.setGoalAndPath(new GoalXZ(10000, 20000));
+    ```
+
+    `setGoalAndPath` is a convenience default that calls `setGoal(goal)` and then `path()` in sequence. You can call them separately if you want to set the goal first and delay pathing.
+  </Step>
+
+  <Step title="Stop pathing">
+    To stop all active movement immediately, call `cancelEverything()` on `IPathingBehavior`:
+
+    ```java
+    baritone.getPathingBehavior().cancelEverything();
+    ```
+
+    This cancels every process that currently holds or wants control of the pathing system. The Javadoc describes it as "MAKE IT STOP". It returns `true` if the path was canceled, or `false` if Baritone is in the middle of an uncancelable action such as a parkour jump — in that case the cancel will complete on the next safe tick.
+  </Step>
+</Steps>
+
+## Checking for Baritone at runtime
+
+If your mod supports environments where Baritone may or may not be installed, guard API access with a class presence check:
+
+```java
+private static boolean isBaritonePresent() {
+    try {
+        Class.forName("baritone.api.BaritoneAPI");
+        return true;
+    } catch (ClassNotFoundException e) {
+        return false;
+    }
+}
+```
+
+Call this once during initialization and cache the result. Only call `BaritoneAPI` methods when this returns `true`.
+
+<Warning>
+  Do not call any Baritone API methods before Minecraft has finished its client initialization. Wait for the appropriate client init or world load event from your mod loader before accessing `BaritoneAPI.getProvider()` or `BaritoneAPI.getSettings()`.
+</Warning>
+
+## Next steps
+
+<Columns cols={2}>
+  <Card title="Integration guide" icon="puzzle" href="/api/integration-guide">
+    Patterns for checking process state, handling events, and writing custom commands.
+  </Card>
+  <Card title="Goals" icon="crosshairs" href="/api/goals">
+    All available goal types and how to compose them.
+  </Card>
+  <Card title="Processes" icon="gears" href="/api/processes">
+    Start and stop specific built-in processes like mining and farming.
+  </Card>
+  <Card title="Settings reference" icon="sliders" href="/api/settings-reference">
+    Complete list of every configurable setting with its default value.
+  </Card>
+</Columns>

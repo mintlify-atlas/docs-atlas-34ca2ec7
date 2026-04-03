@@ -1,0 +1,220 @@
+---
+title: 'Integration Guide'
+description: 'Best practices for integrating Baritone into your Minecraft mod or utility client.'
+---
+
+This guide covers practical patterns you will need when embedding Baritone in a real mod or utility client: querying state, managing multiple instances, stopping cleanly, responding to events, writing custom commands, and staying compatible across versions.
+
+## Checking if a process is active
+
+Before issuing a new command it is good practice to check whether Baritone is already doing something. Use `IPathingBehavior.isPathing()` to test whether a path is currently being executed:
+
+```java
+IBaritone baritone = BaritoneAPI.getProvider().getPrimaryBaritone();
+IPathingBehavior pathingBehavior = baritone.getPathingBehavior();
+
+// true while a path is actively being walked; false during pauses or when idle
+boolean isPathing = pathingBehavior.isPathing();
+```
+
+`isPathing()` returns `false` during a pause even if a path exists. If you want to know whether a path object is loaded regardless of pause state, call `pathingBehavior.hasPath()` instead, which checks `getCurrent() != null`.
+
+You can also check the remaining time in the current path segment:
+
+```java
+Optional<Double> ticksLeft = pathingBehavior.ticksRemainingInSegment();
+ticksLeft.ifPresent(t -> System.out.println("Ticks remaining: " + t));
+```
+
+## Using multiple Baritone instances
+
+`IBaritoneProvider` manages all active instances, including bot players created through Baritone itself. The three main lookup methods are:
+
+```java
+IBaritoneProvider provider = BaritoneAPI.getProvider();
+
+// All active instances, including the primary one
+List<IBaritone> all = provider.getAllBaritones();
+
+// Instance for a specific LocalPlayer
+IBaritone forPlayer = provider.getBaritoneForPlayer(someLocalPlayer);
+
+// Instance for a specific Minecraft client context
+IBaritone forMinecraft = provider.getBaritoneForMinecraft(minecraftInstance);
+```
+
+Each instance is fully independent. You can give each bot its own `ICustomGoalProcess` goal without affecting the others:
+
+```java
+for (IBaritone bot : provider.getAllBaritones()) {
+    // Each bot paths to a different X/Z coordinate
+    bot.getCustomGoalProcess().setGoalAndPath(new GoalXZ(assignedX, assignedZ));
+}
+```
+
+To programmatically create and destroy bot instances, use `createBaritone(Minecraft)` and `destroyBaritone(IBaritone)`. Calling `destroyBaritone` on the primary instance has no effect and returns `false`.
+
+## Stopping cleanly
+
+To stop everything at once, call `cancelEverything()` on `IPathingBehavior`:
+
+```java
+// Cancels all processes and the current path
+baritone.getPathingBehavior().cancelEverything();
+```
+
+To stop only a specific process without affecting others, call `cancel()` (or `onLostControl()`) directly on the process interface. `IMineProcess` provides a named `cancel()` method:
+
+```java
+// Stop mining without affecting other processes
+baritone.getMineProcess().cancel();
+```
+
+For processes that do not expose a named `cancel()` method, call `onLostControl()` from the `IBaritoneProcess` base interface to signal that the process should relinquish control.
+
+<Warning>
+  `cancelEverything()` returns `false` if Baritone is mid-parkour-jump or another action that cannot safely be interrupted. In that case the cancellation completes on the next safe tick. Do not treat a `false` return as a failure — all processes are still marked for cancellation. If you need a guaranteed immediate stop regardless of safety, call `pathingBehavior.forceCancel()`, but note the Javadoc warns this should almost never be used.
+</Warning>
+
+## Listening to events
+
+`IBaritone.getGameEventHandler()` returns the `IEventBus` for that instance. Register any class that implements `IGameEventListener` to receive events dispatched to that bus:
+
+```java
+baritone.getGameEventHandler().registerEventListener(new AbstractGameEventListener() {
+    @Override
+    public void onPathEvent(PathEvent event) {
+        System.out.println("Path event: " + event); // PathEvent is an enum constant
+        if (event == PathEvent.AT_GOAL) {
+            System.out.println("Reached the goal!");
+        }
+    }
+});
+```
+
+`AbstractGameEventListener` is a no-op implementation of `IGameEventListener` — extend it and override only the methods you need.
+
+The full set of events dispatched through `IGameEventListener` includes:
+
+| Method | Trigger |
+|---|---|
+| `onTick(TickEvent)` | Before screen input each game tick |
+| `onPostTick(TickEvent)` | After each game tick completes |
+| `onPlayerUpdate(PlayerUpdateEvent)` | Before and after player rotation is sent |
+| `onSendChatMessage(ChatEvent)` | When the player sends a chat message |
+| `onPreTabComplete(TabCompleteEvent)` | When the player tab-completes in chat |
+| `onChunkEvent(ChunkEvent)` | Before/after a chunk is loaded, unloaded, or populated |
+| `onBlockChange(BlockChangeEvent)` | After a block change packet is received |
+| `onRenderPass(RenderEvent)` | Each world render pass |
+| `onWorldEvent(WorldEvent)` | Before/after a new world is loaded |
+| `onSendPacket(PacketEvent)` | Before an outbound packet is sent |
+| `onReceivePacket(PacketEvent)` | Before an inbound packet is processed |
+| `onPlayerRotationMove(RotationMoveEvent)` | Before/after `moveRelative` and before/after player jumps |
+| `onPlayerSprintState(SprintStateEvent)` | When the sprint key state is checked |
+| `onBlockInteract(BlockInteractEvent)` | When the player interacts with a block |
+| `onPlayerDeath()` | When the `DeathScreen` is opened |
+| `onPathEvent(PathEvent)` | When the pathfinder state changes |
+
+## Writing custom commands
+
+Baritone has a chat-based command system. You can add your own commands by extending the `Command` abstract class and registering the result with `ICommandManager`.
+
+### Implement the command
+
+Extend `Command` and pass your command names to the superclass constructor. The names are automatically lowercased:
+
+```java
+import baritone.api.IBaritone;
+import baritone.api.command.Command;
+import baritone.api.command.argument.IArgConsumer;
+import baritone.api.command.exception.CommandException;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Stream;
+
+public class MyCommand extends Command {
+
+    public MyCommand(IBaritone baritone) {
+        super(baritone, "mycommand");
+    }
+
+    @Override
+    public void execute(String label, IArgConsumer args) throws CommandException {
+        logDirect("mycommand executed");
+    }
+
+    @Override
+    public Stream<String> tabComplete(String label, IArgConsumer args) throws CommandException {
+        return Stream.empty();
+    }
+
+    @Override
+    public String getShortDesc() {
+        return "A custom Baritone command";
+    }
+
+    @Override
+    public List<String> getLongDesc() {
+        return Arrays.asList(
+            "Usage:",
+            "> mycommand - does something"
+        );
+    }
+}
+```
+
+The `Command` base class gives you `this.baritone` (the bound `IBaritone` instance) and `this.ctx` (the `IPlayerContext`) without any extra setup.
+
+### Register the command
+
+Retrieve the `ICommandManager` from your `IBaritone` instance and add your command to its registry:
+
+```java
+baritone.getCommandManager().getRegistry().register(new MyCommand(baritone));
+```
+
+Registered commands respond to the standard Baritone chat prefix (`#` by default). Players can type `#mycommand` in chat to invoke your command.
+
+## Version compatibility
+
+The `baritone.api` package is stable across Baritone point releases for the same Minecraft version. Non-API classes may be renamed or removed in API builds without notice.
+
+Each major Minecraft version corresponds to a major Baritone version. Use the table below when choosing a release:
+
+| Minecraft version | Baritone version |
+|---|---|
+| 1.12.x | v1.2 |
+| 1.13.x | v1.3 |
+| 1.14.x | v1.4 |
+| 1.15.x | v1.5 |
+| 1.16.x | v1.6 |
+| 1.17.x | v1.7 |
+| 1.18.x | v1.8 |
+| 1.19.x | v1.9 |
+| 1.20.x | v1.10 |
+| 1.21 – 1.21.3 | v1.11 |
+| 1.21.4 | v1.13 |
+| 1.21.5 | v1.14 |
+| 1.21.6 – 1.21.8 | v1.15 |
+
+<Tip>
+  Always compile against the `baritone-api-*` jar, not `baritone-standalone-*`. The standalone jar has everything obfuscated, so your build will fail at compile time if you accidentally reference non-API classes.
+</Tip>
+
+## Reference
+
+<Columns cols={2}>
+  <Card title="Goals" icon="crosshairs" href="/api/goals">
+    All goal types and how to compose them.
+  </Card>
+  <Card title="Processes" icon="gears" href="/api/processes">
+    Start, stop, and introspect each built-in process.
+  </Card>
+  <Card title="Events" icon="bell" href="/api/events">
+    Full event reference with payload types.
+  </Card>
+  <Card title="Settings reference" icon="sliders" href="/api/settings-reference">
+    Every configurable setting with default values.
+  </Card>
+</Columns>

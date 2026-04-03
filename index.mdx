@@ -1,97 +1,69 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Baritone"
+description: "Google Maps for Minecraft — a high-performance A* pathfinding bot and mod library that automates navigation, mining, building, farming, and more."
 ---
 
-## Setting up
+Baritone is the pathfinding system used in [Impact](https://impactclient.net/) and many other Minecraft utility clients. It calculates paths in real time using a heavily optimized A\* algorithm, handles block breaking and placing, and exposes a clean Java API so other mods can control it programmatically.
 
-Get your documentation site up and running in minutes.
-
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Install Baritone as a Forge, NeoForge, or Fabric mod — or build from source.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get moving in 60 seconds: navigate to coordinates, mine ore, and stop.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Command Reference" icon="terminal" href="/usage/commands">
+    Every chat command Baritone understands, with examples and tips.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="Settings" icon="sliders" href="/usage/settings">
+    ~100 configurable options to tune Baritone's behavior for your playstyle.
   </Card>
-</Columns>
+</CardGroup>
 
-## Create beautiful pages
+## What Baritone can do
 
-Everything you need to create world-class documentation.
+<CardGroup cols={2}>
+  <Card title="Pathfinding" icon="route" href="/features/pathfinding">
+    Long-distance navigation with chunk caching, parkour, block breaking, and placing.
+  </Card>
+  <Card title="Automation Processes" icon="gears" href="/features/processes">
+    Mine ore, farm crops, follow players, explore the world, and build schematics.
+  </Card>
+  <Card title="Elytra Flight" icon="wind" href="/features/elytra">
+    Automated Elytra navigation through the Nether using fireworks.
+  </Card>
+  <Card title="Schematic Builder" icon="cubes" href="/features/schematic">
+    Build any schematic automatically from .schematic or Litematica files.
+  </Card>
+</CardGroup>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+## Integrate Baritone into your mod
 
-## Need inspiration?
+Baritone ships with a public Java API so utility clients and mods can control it directly.
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+<Steps>
+  <Step title="Add the API jar as a dependency">
+    Grab `baritone-api-*-VERSION.jar` from the [releases page](https://github.com/cabaletta/baritone/releases) and add it to your Gradle project.
+  </Step>
+  <Step title="Get the Baritone instance">
+    Use `BaritoneAPI.getProvider().getPrimaryBaritone()` to access the active instance.
+  </Step>
+  <Step title="Set a goal and path">
+    Create a `Goal` (e.g. `GoalXZ`, `GoalBlock`) and pass it to the `ICustomGoalProcess`.
+  </Step>
+</Steps>
+
+<CardGroup cols={2}>
+  <Card title="API Overview" icon="code" href="/api/overview">
+    Understand the structure of the Baritone API.
+  </Card>
+  <Card title="Developer Quick Start" icon="play" href="/api/getting-started">
+    A working Java code example to get your integration running.
+  </Card>
+  <Card title="Goals Reference" icon="bullseye" href="/api/goals">
+    All Goal types with constructor signatures and use cases.
+  </Card>
+  <Card title="Processes Reference" icon="microchip" href="/api/processes">
+    Mine, build, follow, farm, explore — all accessible via the API.
+  </Card>
+</CardGroup>

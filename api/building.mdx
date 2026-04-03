@@ -1,0 +1,294 @@
+---
+title: 'Building API'
+description: "Control Baritone's schematic builder programmatically via IBuilderProcess."
+---
+
+`IBuilderProcess` controls Baritone's ability to build structures from schematics. Access it from any `IBaritone` instance:
+
+```java
+IBuilderProcess builder = baritone.getBuilderProcess();
+```
+
+Only one Baritone process can hold control at a time. Once you call a `build` method, `IBuilderProcess` becomes active and takes control of pathing until the build completes or you cancel it.
+
+## Building from a file
+
+Use the file-based overload to load a schematic from disk. Pass a user-friendly label, the `File` pointing at the schematic, and the world origin where the build should start.
+
+```java
+boolean build(String name, File schematic, Vec3i origin)
+```
+
+Returns `true` if the schematic loaded successfully, `false` if the file could not be parsed.
+
+```java
+File schematicFile = new File(
+    new File(Minecraft.getInstance().gameDirectory, "schematics"),
+    "my_house.schematic"
+);
+BlockPos playerPos = BlockPos.containing(mc.player.position());
+Vec3i origin = new Vec3i(playerPos.getX(), playerPos.getY(), playerPos.getZ());
+
+boolean started = baritone.getBuilderProcess().build("my_house", schematicFile, origin);
+if (!started) {
+    // File was not found or could not be parsed
+}
+```
+
+<Note>
+  Baritone supports three schematic formats out of the box. The format is detected from the file extension:
+
+  | Format | Extension | Notes |
+  |---|---|---|
+  | MCEdit | `.schematic` | Classic format, widely supported |
+  | Sponge | `.schem` | Sponge Schematic Specification v1 and v2 |
+  | Litematica | `.litematic` | Version 6 only (Minecraft 1.18+) |
+</Note>
+
+### Open schematic helpers
+
+If a schematic is already open in a compatible mod, you can start building from it directly:
+
+```java
+void buildOpenSchematic()      // build the currently open Schematica schematic
+void buildOpenLitematic(int i) // build region i of the currently open Litematica schematic
+```
+
+### Clearing an area
+
+To fill a region with air, use `clearArea` instead of a schematic:
+
+```java
+void clearArea(BlockPos corner1, BlockPos corner2)
+```
+
+Pass any two opposite corners of the bounding box. Baritone will mine every non-air block inside.
+
+## Building from an ISchematic
+
+Instead of loading from a file you can pass any object that implements `ISchematic`. This lets you generate structures procedurally or wrap data from another source.
+
+### The ISchematic interface
+
+```java
+public interface ISchematic {
+
+    // Does the block at this relative position matter?
+    // Return false to tell the builder to ignore the position entirely.
+    default boolean inSchematic(int x, int y, int z, BlockState currentState);
+
+    // Return the desired BlockState at position (x, y, z) relative to the origin.
+    BlockState desiredState(int x, int y, int z, BlockState current, List<BlockState> approxPlaceable);
+
+    // Optional: clear any cached state when the schematic is moved.
+    default void reset() {}
+
+    int widthX();   // size on the X axis
+    int heightY();  // size on the Y axis
+    int lengthZ();  // size on the Z axis
+}
+```
+
+All coordinates passed into `desiredState` and `inSchematic` are relative to the origin you provide when calling `build`. `approxPlaceable` is the list of block states Baritone estimates it can currently place — you can use it to pick a compatible state.
+
+### Implementing a custom schematic
+
+The following example generates a flat layer of stone:
+
+```java
+public class StoneSlabSchematic implements ISchematic {
+
+    private final int width;
+    private final int length;
+
+    public StoneSlabSchematic(int width, int length) {
+        this.width = width;
+        this.length = length;
+    }
+
+    @Override
+    public BlockState desiredState(int x, int y, int z, BlockState current, List<BlockState> approxPlaceable) {
+        return Blocks.STONE.defaultBlockState();
+    }
+
+    @Override
+    public int widthX() { return width; }
+
+    @Override
+    public int heightY() { return 1; }
+
+    @Override
+    public int lengthZ() { return length; }
+}
+```
+
+### Passing a custom schematic to the builder
+
+Use the `ISchematic` overload of `build`:
+
+```java
+void build(String name, ISchematic schematic, Vec3i origin)
+```
+
+This overload returns `void` because there is no file to fail to load.
+
+```java
+ISchematic slab = new StoneSlabSchematic(16, 16);
+Vec3i origin = new Vec3i(100, 64, 200);
+baritone.getBuilderProcess().build("stone_slab", slab, origin);
+```
+
+## Key settings for building
+
+Access all settings through `BaritoneAPI.getSettings()`. Write a new value by assigning to the `.value` field.
+
+<AccordionGroup>
+  <Accordion title="buildInLayers — build bottom to top one layer at a time">
+    ```java
+    Setting<Boolean> buildInLayers  // default: false
+    ```
+
+    When `true`, Baritone completes one horizontal layer before moving to the next. This prevents the builder from trying to place blocks that have no support yet.
+
+    ```java
+    BaritoneAPI.getSettings().buildInLayers.value = true;
+    ```
+
+    Related settings:
+
+    | Setting | Type | Default | Description |
+    |---|---|---|---|
+    | `layerHeight` | `int` | `1` | How many Y levels make up one layer |
+    | `layerOrder` | `boolean` | `false` | `false` = bottom to top, `true` = top to bottom |
+    | `startAtLayer` | `int` | `0` | Skip the first N layers |
+    | `skipFailedLayers` | `boolean` | `false` | Continue to the next layer if the current one cannot be completed |
+  </Accordion>
+
+  <Accordion title="buildRepeat and buildRepeatCount — tile the structure">
+    ```java
+    Setting<Vec3i>  buildRepeat       // default: Vec3i(0, 0, 0)
+    Setting<Integer> buildRepeatCount // default: -1 (infinite)
+    ```
+
+    `buildRepeat` specifies how far to shift the origin after each repetition. Set an axis to `0` to disable repetition on that axis. Set the entire vector to `(0, 0, 0)` to disable tiling entirely.
+
+    `buildRepeatCount` is the number of additional copies to build. Use `-1` for infinite repetition.
+
+    ```java
+    // Build 5 copies spaced 20 blocks apart along the X axis
+    BaritoneAPI.getSettings().buildRepeat.value = new Vec3i(20, 0, 0);
+    BaritoneAPI.getSettings().buildRepeatCount.value = 4; // 1 original + 4 copies
+    ```
+
+    `buildRepeatSneaky` (default `true`) controls whether `reset()` is called on the schematic between repetitions. When `true`, the schematic's cached state is not cleared, which replicates legacy behavior. Set it to `false` if your custom `ISchematic` implementation uses `reset()` to shift relative positions.
+  </Accordion>
+
+  <Accordion title="acceptableThrowawayItems — blocks used for scaffolding">
+    ```java
+    Setting<List<Item>> acceptableThrowawayItems
+    // default: [DIRT, COBBLESTONE, NETHERRACK, STONE]
+    ```
+
+    The builder uses these items for temporary scaffolding when it needs to reach a placement position. Add any item that is safe to waste:
+
+    ```java
+    BaritoneAPI.getSettings().acceptableThrowawayItems.value.add(Items.GRAVEL);
+    ```
+
+    <Warning>
+      The builder will place and not reclaim these blocks. Only add items you are willing to lose.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="allowInventory — pull blocks from inventory to hotbar">
+    ```java
+    Setting<Boolean> allowInventory  // default: false
+    ```
+
+    When `true`, Baritone moves items from your main inventory into the hotbar when it needs a specific block that is not already accessible. This is required for builds that use many different block types.
+
+    ```java
+    BaritoneAPI.getSettings().allowInventory.value = true;
+    ```
+
+    Related settings:
+
+    | Setting | Type | Default | Description |
+    |---|---|---|---|
+    | `ticksBetweenInventoryMoves` | `int` | `1` | Minimum ticks between consecutive inventory operations |
+    | `inventoryMoveOnlyIfStationary` | `boolean` | `false` | Stop moving before performing inventory operations |
+  </Accordion>
+</AccordionGroup>
+
+## Monitoring build progress
+
+### Checking whether the builder is active
+
+`IBuilderProcess` extends `IBaritoneProcess`, which exposes `isActive()`:
+
+```java
+boolean isActive()
+```
+
+Poll this on each tick to know whether the builder still has control:
+
+```java
+if (baritone.getBuilderProcess().isActive()) {
+    // build is still in progress
+}
+```
+
+### Pausing and resuming
+
+You can pause an in-progress build without cancelling it:
+
+```java
+void pause()
+boolean isPaused()
+void resume()
+```
+
+```java
+// Pause the build
+baritone.getBuilderProcess().pause();
+
+// Later, resume from where it left off
+baritone.getBuilderProcess().resume();
+```
+
+### Stopping a build
+
+Call `cancelEverything()` on `IPathingBehavior` to stop the builder and clear its state:
+
+```java
+baritone.getPathingBehavior().cancelEverything();
+```
+
+This stops pathing immediately and causes `isActive()` to return `false` on the next tick.
+
+### Querying placeable blocks
+
+While the builder is active, you can ask it which block states it estimates it can currently place:
+
+```java
+List<BlockState> getApproxPlaceable()
+```
+
+This list is updated every tick. You can use it inside a custom `ISchematic.desiredState` implementation to select a state that the builder will accept rather than give up on.
+
+### Layer progress
+
+When `buildInLayers` is enabled, you can read the current layer bounds:
+
+```java
+Optional<Integer> getMinLayer()  // lower bound of the current layer
+Optional<Integer> getMaxLayer()  // upper bound of the current layer
+```
+
+Both return `Optional.empty()` when `buildInLayers` is `false`.
+
+```java
+Optional<Integer> min = baritone.getBuilderProcess().getMinLayer();
+Optional<Integer> max = baritone.getBuilderProcess().getMaxLayer();
+min.ifPresent(y -> System.out.println("Building layer from Y=" + y + " to Y=" + max.orElse(-1)));
+```

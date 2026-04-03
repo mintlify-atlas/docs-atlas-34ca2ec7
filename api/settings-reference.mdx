@@ -1,0 +1,408 @@
+---
+title: "Settings Reference"
+description: "Complete reference for all Baritone Settings fields accessible via the Java API."
+---
+
+`BaritoneAPI.getSettings()` returns the singleton `Settings` instance. Settings are shared across all `IBaritone` instances and persist to `minecraft/baritone/settings.txt` automatically.
+
+## Reading and writing settings
+
+Access any setting by reading or writing its `.value` field:
+
+```java
+import baritone.api.BaritoneAPI;
+import baritone.api.Settings;
+
+Settings s = BaritoneAPI.getSettings();
+
+// Boolean setting
+s.allowSprint.value = true;
+
+// Long setting (milliseconds)
+s.primaryTimeoutMS.value = 2000L;
+
+// Double setting
+s.blockPlacementPenalty.value = 0.5;
+
+// Integer setting
+s.followRadius.value = 5;
+
+// List setting
+s.acceptableThrowawayItems.value = Arrays.asList(
+    Blocks.COBBLESTONE.asItem(),
+    Blocks.DIRT.asItem()
+);
+```
+
+To reset a setting to its default:
+
+```java
+BaritoneAPI.getSettings().allowSprint.reset();
+```
+
+---
+
+## Movement
+
+Controls what movement types Baritone can and cannot use.
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `allowBreak` | `Boolean` | `true` | Allow Baritone to break blocks while pathfinding. |
+| `allowBreakAnyway` | `List<Block>` | `[]` | Blocks Baritone may break even when `allowBreak` is `false`. |
+| `allowSprint` | `Boolean` | `true` | Allow sprinting. |
+| `allowPlace` | `Boolean` | `true` | Allow placing blocks (bridging, scaffolding). |
+| `allowPlaceInFluidsSource` | `Boolean` | `true` | Allow placing blocks inside fluid source blocks. |
+| `allowPlaceInFluidsFlow` | `Boolean` | `true` | Allow placing blocks inside flowing fluid. |
+| `allowParkour` | `Boolean` | `false` | Allow parkour jumps (gap jumps). Unreliable — can overshoot. |
+| `allowParkourPlace` | `Boolean` | `false` | Allow placing a block mid-air to land on during parkour. |
+| `allowParkourAscend` | `Boolean` | `true` | Allow sprint-jumping up to a higher block. Only active when `allowParkour` is also `true`. |
+| `allowDiagonalDescend` | `Boolean` | `false` | Allow descending diagonally. Slightly unsafe in the Nether. |
+| `allowDiagonalAscend` | `Boolean` | `false` | Allow ascending diagonally. Safer than diagonal descend. |
+| `allowDownward` | `Boolean` | `true` | Allow mining the block directly below the player's feet. Disable to force staircases. |
+| `allowVines` | `Boolean` | `false` | Enable advanced vine climbing behaviors. Generally not needed; can cause the player to get stuck. |
+| `allowWalkOnBottomSlab` | `Boolean` | `true` | Allow walking on bottom-half slabs. Disable for higher reliability on paths without slabs. |
+| `allowWaterBucketFall` | `Boolean` | `true` | Allow falling arbitrary distances and placing a water bucket to land safely. |
+| `allowJumpAtBuildLimit` | `Boolean` | `false` | Allow parkour jumps at world build height (Y=256). Disabled by default due to server compatibility issues. |
+| `assumeWalkOnWater` | `Boolean` | `false` | Treat water surface as walkable (for mods providing Jesus/water-walk functionality). |
+| `assumeWalkOnLava` | `Boolean` | `false` | Treat lava surface as walkable. |
+| `assumeStep` | `Boolean` | `false` | Assume step-assist; skip jumping on 1-block ascents. |
+| `assumeSafeWalk` | `Boolean` | `false` | Assume safe-walk (no sneaking needed on edges). |
+| `sprintAscends` | `Boolean` | `true` | Sprint-jump a block early on ascend movements where possible. |
+| `sprintInWater` | `Boolean` | `true` | Continue sprinting while in water. |
+| `allowWalkOnMagmaBlocks` | `Boolean` | `false` | Allow walking on magma blocks (normally Baritone sneaks to avoid damage). |
+| `maxFallHeightNoWater` | `Integer` | `3` | Maximum blocks to fall onto solid ground without a water bucket. 3 = no fall damage unarmored. |
+| `maxFallHeightBucket` | `Integer` | `20` | Maximum blocks to fall when a water bucket is available. |
+| `allowOvershootDiagonalDescend` | `Boolean` | `true` | Allow sprinting through a descend followed by a diagonal, slightly overshooting the landing. |
+
+```java
+// Enable parkour for faster movement
+Settings s = BaritoneAPI.getSettings();
+s.allowParkour.value = true;
+s.allowParkourPlace.value = true;
+s.allowDiagonalAscend.value = true;
+```
+
+---
+
+## Pathfinding
+
+Controls the A\* pathfinder's timing, cost calculation, and behavior.
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `primaryTimeoutMS` | `Long` | `500` | Stop path calculation after this many milliseconds if a valid path was found. |
+| `failureTimeoutMS` | `Long` | `2000` | Hard upper limit on path calculation time even if no path is found. |
+| `planAheadPrimaryTimeoutMS` | `Long` | `4000` | Primary timeout for planning-ahead calculations (while a segment is executing). |
+| `planAheadFailureTimeoutMS` | `Long` | `5000` | Failure timeout for planning-ahead calculations. |
+| `costHeuristic` | `Double` | `3.563` | A\* heuristic multiplier. Values below 3.5 are always admissible. Higher values compute faster but may produce suboptimal paths. |
+| `pathCutoffFactor` | `Double` | `0.9` | Cut off the last `(1 - factor)` portion of every calculated path. |
+| `pathCutoffMinimumLength` | `Integer` | `30` | Only apply the cutoff factor to paths of at least this many movements. |
+| `planningTickLookahead` | `Integer` | `150` | Begin calculating the next path segment when the remaining tick estimate drops below this value. |
+| `movementTimeoutTicks` | `Integer` | `100` | Cancel a movement if it takes more than this many ticks beyond its estimated cost. |
+| `maxCostIncrease` | `Double` | `10.0` | Cancel and recalculate if a movement's cost increases by more than this amount at execution time. |
+| `costVerificationLookahead` | `Integer` | `5` | Stop the path 5 movements before any step that became cost-infinite (e.g., lava spread). |
+| `pathingMaxChunkBorderFetch` | `Integer` | `50` | Stop pathfinding after this many accesses to unloaded/uncached chunks. |
+| `backtrackCostFavoringCoefficient` | `Double` | `0.5` | Multiply the cost of revisiting already-visited nodes. Lower = favors unexplored routes. Set to `1.0` to disable. |
+| `cutoffAtLoadBoundary` | `Boolean` | `false` | Trim the path to only the loaded-chunk portion after calculation. |
+| `simplifyUnloadedYCoord` | `Boolean` | `true` | Replace a `GoalBlock` in an unloaded chunk with `GoalXZ` until close enough for Y to matter. |
+| `splicePath` | `Boolean` | `true` | Splice a newly calculated segment onto the current path instead of waiting for the current to finish. |
+| `chunkCaching` | `Boolean` | `true` | Cache chunks in a simplified 2-bit format for long-distance pathfinding. |
+| `repackOnAnyBlockChange` | `Boolean` | `true` | Repack a chunk's cache data whenever any block in it changes. |
+| `slowPath` | `Boolean` | `false` | Debug mode — process one node every `slowPathTimeDelayMS` milliseconds. |
+| `slowPathTimeDelayMS` | `Long` | `100` | Milliseconds between nodes in slow-path debug mode. |
+| `antiCheatCompatibility` | `Boolean` | `true` | Adjust behavior to avoid tripping common anticheats (e.g., correct sprint direction). |
+
+```java
+// Give the pather more time on complex terrain
+Settings s = BaritoneAPI.getSettings();
+s.primaryTimeoutMS.value = 1000L;
+s.failureTimeoutMS.value = 5000L;
+```
+
+---
+
+## Block interaction
+
+Controls costs and restrictions around breaking and placing blocks.
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `blockPlacementPenalty` | `Double` | `20.0` | Extra cost added to paths that require placing a block. Decrease to make Baritone place blocks more willingly. |
+| `blockBreakAdditionalPenalty` | `Double` | `2.0` | Extra cost for breaking any block, as a tiebreaker to prefer routes that avoid breaking. |
+| `jumpPenalty` | `Double` | `2.0` | Extra cost for any movement that requires pressing jump (ascend, pillar, parkour). |
+| `walkOnWaterOnePenalty` | `Double` | `3.0` | Extra cost for walking on water (uses hunger quickly). |
+| `acceptableThrowawayItems` | `List<Item>` | `[dirt, cobblestone, netherrack, stone]` | Items Baritone may place as scaffolding or bridging material. |
+| `blocksToAvoid` | `List<Block>` | `[tripwire]` | Blocks Baritone avoids walking on or near. |
+| `blocksToDisallowBreaking` | `List<Block>` | `[]` | Blocks Baritone will never break. |
+| `blocksToAvoidBreaking` | `List<Block>` | `[crafting_table, furnace, chest, trapped_chest]` | Blocks Baritone avoids breaking but will break if necessary. |
+| `avoidBreakingMultiplier` | `Double` | `0.1` | Multiply break cost for `blocksToAvoidBreaking`. Values above `1.0` encourage breaking instead. |
+| `avoidUpdatingFallingBlocks` | `Boolean` | `true` | Never break a block adjacent to unsupported sand or gravel to avoid cascade falls. |
+| `autoTool` | `Boolean` | `true` | Automatically switch to the best tool before breaking a block. |
+| `assumeExternalAutoTool` | `Boolean` | `false` | Assume another mod provides auto-tool; Baritone factors it into cost calculation but won't switch tools itself. |
+| `considerPotionEffects` | `Boolean` | `true` | Adjust break costs for active potion effects (Haste, Mining Fatigue). |
+| `walkWhileBreaking` | `Boolean` | `true` | Continue walking forward while breaking blocks in the path. |
+| `rightClickSpeed` | `Integer` | `4` | Minimum ticks between right-clicks. |
+| `blockReachDistance` | `Float` | `4.5` | Player block reach distance in blocks. |
+| `itemSaver` | `Boolean` | `false` | Stop using a tool before it breaks. |
+| `itemSaverThreshold` | `Integer` | `10` | Durability at which `itemSaver` stops using a tool. |
+| `preferSilkTouch` | `Boolean` | `false` | Always prefer silk touch tools over regular tools of equivalent speed. |
+| `strictLiquidCheck` | `Boolean` | `false` | Refuse to break blocks adjacent to any liquid. Enable if using custom fluid physics mods. |
+| `pauseMiningForFallingBlocks` | `Boolean` | `true` | Wait for falling blocks to settle before continuing movement after a mine action. |
+| `backfill` | `Boolean` | `false` | Place blocks behind the player to fill in tunnels as it moves. |
+| `useSwordToMine` | `Boolean` | `true` | Allow using a sword to mine blocks (e.g., cobwebs). |
+
+```java
+// Make Baritone more willing to bridge over gaps
+BaritoneAPI.getSettings().blockPlacementPenalty.value = 5.0;
+
+// Never break chests or valuable blocks
+BaritoneAPI.getSettings().blocksToDisallowBreaking.value =
+    Arrays.asList(Blocks.CHEST, Blocks.ENDER_CHEST, Blocks.BEACON);
+```
+
+---
+
+## Mining
+
+Settings specific to `IMineProcess` behavior.
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `legitMine` | `Boolean` | `false` | Only mine ores the player can actually see — no X-ray through the chunk cache. Forces exploring to find ores. |
+| `legitMineYLevel` | `Integer` | `-59` | Y level to strip-mine at when `legitMine` is enabled. |
+| `legitMineIncludeDiagonals` | `Boolean` | `false` | Expand legit mine vision to include diagonally-adjacent blocks. |
+| `mineScanDroppedItems` | `Boolean` | `true` | Count dropped item entities of the target type as valid pathing goals (pick up ore drops). |
+| `mineGoalUpdateInterval` | `Integer` | `5` | Rescan for ore goal locations every this many ticks. |
+| `maxCachedWorldScanCount` | `Integer` | `10` | Stop expanding the chunk cache scan after finding this many target blocks. |
+| `mineMaxOreLocationsCount` | `Integer` | `64` | Maximum number of ore target locations tracked at once. |
+| `minYLevelWhileMining` | `Integer` | `0` | Refuse to mine below this Y level. Set to `0` to disable the lower bound. |
+| `maxYLevelWhileMining` | `Integer` | `2031` | Refuse to mine above this Y level. |
+| `allowOnlyExposedOres` | `Boolean` | `false` | Only target ores that have at least one exposed face. Useful against ore obfuscation plugins. |
+| `allowOnlyExposedOresDistance` | `Integer` | `1` | Search radius around each ore when `allowOnlyExposedOres` is enabled. Keep this low. |
+| `forceInternalMining` | `Boolean` | `true` | When two adjacent blocks are both targets, use `GoalBlock` or shift the goal to mine both in one pass. |
+| `internalMiningAirException` | `Boolean` | `true` | Only apply `forceInternalMining` when the adjacent block is not already air. |
+| `mineDropLoiterDurationMSThanksLouca` | `Long` | `250` | Milliseconds to wait after mining a block for a drop to appear before moving on. |
+| `cancelOnGoalInvalidation` | `Boolean` | `true` | Cancel the current path immediately when the target block is mined and that position is no longer a goal. Speeds up mining but may miss some drops. |
+| `extendCacheOnThreshold` | `Boolean` | `false` | If cache scan returns fewer results than the max but above zero, also scan the live world. CPU-intensive. |
+| `blacklistClosestOnFailure` | `Boolean` | `true` | When pathfinding to a block fails, mark it unreachable and try the next closest. |
+
+```java
+// Mine legit — no X-ray, strip mine at Y=-59
+Settings s = BaritoneAPI.getSettings();
+s.legitMine.value = true;
+s.legitMineYLevel.value = -59;
+```
+
+---
+
+## Building
+
+Settings that control `IBuilderProcess` behavior.
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `buildInLayers` | `Boolean` | `false` | Build one horizontal layer at a time before moving to the next. |
+| `layerOrder` | `Boolean` | `false` | `false` = bottom to top; `true` = top to bottom. |
+| `layerHeight` | `Integer` | `1` | Height in blocks of each build layer when `buildInLayers` is enabled. |
+| `startAtLayer` | `Integer` | `0` | Begin construction at this layer index. Useful for resuming large builds. |
+| `skipFailedLayers` | `Boolean` | `false` | Skip a layer entirely if it cannot be built, and continue with the next. |
+| `buildRepeat` | `Vec3i` | `(0,0,0)` | Offset to move before repeating the build. Set any axis to `0` to disable that axis. |
+| `buildRepeatCount` | `Integer` | `-1` | Number of times to repeat the build. `-1` = infinite. |
+| `buildRepeatSneaky` | `Boolean` | `true` | Do not notify the schematic of the movement offset on repeat — replaces the same coordinates each time. |
+| `buildIgnoreExisting` | `Boolean` | `false` | Treat all existing non-air blocks as correct; only place blocks, never break. |
+| `buildIgnoreDirection` | `Boolean` | `false` | Ignore facing direction of directional blocks (glazed terracotta, etc.). |
+| `buildIgnoreBlocks` | `List<Block>` | `[]` | Treat these blocks as air when the schematic calls for air. |
+| `buildSkipBlocks` | `List<Block>` | `[]` | Accept any block listed here as correct regardless of what the schematic asks for. |
+| `buildValidSubstitutes` | `Map<Block, List<Block>>` | `{}` | Map of schematic blocks → acceptable substitutes at that position. |
+| `buildSubstitutes` | `Map<Block, List<Block>>` | `{}` | Map of schematic blocks → blocks to place instead (first placeable one is used). |
+| `okIfAir` | `List<Block>` | `[]` | Blocks that must become air — nothing but air is accepted at those positions. |
+| `okIfWater` | `Boolean` | `false` | Do not attempt to correct blocks that are currently water. |
+| `mapArtMode` | `Boolean` | `false` | Only care about the top block of each column (for map art builds). |
+| `buildSchematicRotation` | `Rotation` | `NONE` | Rotate the schematic before building: `NONE`, `CLOCKWISE_90`, `CLOCKWISE_180`, `COUNTERCLOCKWISE_90`. |
+| `buildSchematicMirror` | `Mirror` | `NONE` | Mirror the schematic: `NONE`, `FRONT_BACK`, `LEFT_RIGHT`. |
+| `schematicOrientationX` | `Boolean` | `false` | Use the highest X coordinate as origin instead of the lowest. |
+| `schematicOrientationY` | `Boolean` | `false` | Use the highest Y coordinate as origin instead of the lowest. |
+| `schematicOrientationZ` | `Boolean` | `false` | Use the highest Z coordinate as origin instead of the lowest. |
+| `schematicFallbackExtension` | `String` | `"schematic"` | File extension assumed when none is specified in `#build`. |
+| `breakFromAbove` | `Boolean` | `false` | Experimental: allow standing above a block to mine it during building. |
+| `incorrectSize` | `Integer` | `100` | Maximum number of incorrect block positions tracked at once. |
+| `breakCorrectBlockPenaltyMultiplier` | `Double` | `10.0` | Multiply break cost for blocks that are already correct in the schematic. |
+| `placeIncorrectBlockPenaltyMultiplier` | `Double` | `2.0` | Multiply placement cost for blocks that are incorrect in the schematic. |
+| `distanceTrim` | `Boolean` | `true` | Trim incorrect positions that are far away. Improves performance on large schematics. |
+
+```java
+// Build a schematic in layers, bottom to top
+Settings s = BaritoneAPI.getSettings();
+s.buildInLayers.value = true;
+s.layerOrder.value = false;
+s.layerHeight.value = 2;
+
+// Repeat a build 10 times, offset by 20 blocks on the X axis
+s.buildRepeat.value = new Vec3i(20, 0, 0);
+s.buildRepeatCount.value = 10;
+```
+
+---
+
+## Following
+
+Settings for `IFollowProcess`.
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `followRadius` | `Integer` | `3` | How close (in blocks) Baritone must get to the follow target. Passed to `GoalNear`. |
+| `followOffsetDistance` | `Double` | `0.0` | Maintain this distance *away* from the target, in the direction given by `followOffsetDirection`. |
+| `followOffsetDirection` | `Float` | `0.0` | Direction (in degrees) of the follow offset relative to the target. |
+| `followTargetMaxDistance` | `Integer` | `0` | Stop following if the target is farther than this many blocks away. `0` = no limit. |
+
+```java
+// Stay 5 blocks behind the target
+Settings s = BaritoneAPI.getSettings();
+s.followRadius.value = 1;
+s.followOffsetDistance.value = 5.0;
+s.followOffsetDirection.value = 180.0f; // behind the target
+```
+
+---
+
+## Display and rendering
+
+Controls what Baritone renders in the game world and how it communicates in chat.
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `renderPath` | `Boolean` | `true` | Render the current path as a colored overlay. |
+| `renderPathAsLine` | `Boolean` | `false` | Render the path as a simple line instead of the default segment style. |
+| `renderPathIgnoreDepth` | `Boolean` | `true` | Render the path through walls (ignore depth buffer). |
+| `pathRenderLineWidthPixels` | `Float` | `5.0` | Line width of the rendered path in pixels. |
+| `renderGoal` | `Boolean` | `true` | Render the current goal as a box or beacon. |
+| `renderGoalAnimated` | `Boolean` | `true` | Animate the goal box (and `GoalXZ` beacon if `renderGoalXZBeacon` is on). |
+| `renderGoalIgnoreDepth` | `Boolean` | `true` | Render the goal box through walls. |
+| `renderGoalXZBeacon` | `Boolean` | `false` | Render `GoalXZ` goals as a vanilla beacon beam. |
+| `goalRenderLineWidthPixels` | `Float` | `3.0` | Line width of the rendered goal box in pixels. |
+| `yLevelBoxSize` | `Double` | `15.0` | Size of the box rendered for `GoalYLevel` goals. |
+| `fadePath` | `Boolean` | `false` | Fade out path segments beyond 20 movements ahead. Improves FPS on long paths. |
+| `renderSelectionBoxes` | `Boolean` | `true` | Render selection boxes for blocks being broken, placed, or walked into. |
+| `renderSelectionBoxesIgnoreDepth` | `Boolean` | `true` | Render selection boxes through walls. |
+| `renderCachedChunks` | `Boolean` | `false` | Render cached-but-not-loaded chunks as semitransparent blocks. Incompatible with OptiFine; may hurt FPS significantly. |
+| `cachedChunksOpacity` | `Float` | `0.5` | Opacity of cached chunk rendering. `0.0` = invisible, `1.0` = opaque. |
+| `chatControl` | `Boolean` | `true` | Allow controlling Baritone via chat commands. |
+| `chatControlAnyway` | `Boolean` | `false` | Force chat control on even if a client mod has disabled it. |
+| `prefixControl` | `Boolean` | `true` | Allow controlling Baritone with the `#` prefix in chat. |
+| `prefix` | `String` | `"#"` | The command prefix for chat control. |
+| `shortBaritonePrefix` | `Boolean` | `false` | Use `[B]` in chat messages instead of `[Baritone]`. |
+| `echoCommands` | `Boolean` | `true` | Echo commands back to chat when run. |
+| `chatDebug` | `Boolean` | `false` | Print all internal debug messages to chat. |
+| `censorCoordinates` | `Boolean` | `false` | Hide coordinates in goal and block position messages. |
+| `censorRanCommands` | `Boolean` | `false` | Hide command arguments (e.g., coordinates in `#goal`) in chat. |
+| `logAsToast` | `Boolean` | `false` | Display Baritone messages as toast popups instead of chat messages. |
+| `toastTimer` | `Long` | `5000` | Duration in milliseconds to display each toast popup. |
+| `desktopNotifications` | `Boolean` | `false` | Send desktop OS notifications for key events. |
+| `notificationOnPathComplete` | `Boolean` | `true` | Desktop notification when a path completes. |
+| `notificationOnFarmFail` | `Boolean` | `true` | Desktop notification when farm process fails. |
+| `notificationOnBuildFinished` | `Boolean` | `true` | Desktop notification when a build finishes. |
+| `notificationOnExploreFinished` | `Boolean` | `true` | Desktop notification when exploration finishes. |
+| `notificationOnMineFail` | `Boolean` | `true` | Desktop notification when mine process fails. |
+
+```java
+// Disable all rendering for a performance boost
+Settings s = BaritoneAPI.getSettings();
+s.renderPath.value = false;
+s.renderGoal.value = false;
+s.renderSelectionBoxes.value = false;
+```
+
+---
+
+## Advanced
+
+Miscellaneous settings for edge cases, exploration, and fine-tuned control.
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `allowInventory` | `Boolean` | `false` | Allow Baritone to move items in your inventory to the hotbar (e.g., to get the right tool). |
+| `ticksBetweenInventoryMoves` | `Integer` | `1` | Ticks to wait between inventory slot swaps. |
+| `inventoryMoveOnlyIfStationary` | `Boolean` | `false` | Only perform inventory moves when the player is standing still. Useful for anticheat servers. |
+| `axisHeight` | `Integer` | `120` | Y level used by `GoalAxis` (the `#axis` command). |
+| `worldExploringChunkOffset` | `Integer` | `0` | Offset the closest unloaded chunk by this many blocks on both axes during exploration. Set to your render distance for more efficient loading. |
+| `exploreChunkSetMinimumSize` | `Integer` | `10` | Minimum number of candidate chunks to consider even if they aren't the closest. |
+| `exploreMaintainY` | `Integer` | `64` | Try to maintain this Y level while exploring. `-1` to disable. |
+| `exploreForBlocks` | `Boolean` | `true` | When `IMineProcess` or `IGetToBlockProcess` has no known locations, explore randomly instead of giving up. |
+| `disconnectOnArrival` | `Boolean` | `false` | Disconnect from the server when the goal is reached. |
+| `doBedWaypoints` | `Boolean` | `true` | Save a waypoint when the player interacts with a bed. |
+| `doDeathWaypoints` | `Boolean` | `true` | Save a waypoint when the player dies. |
+| `cachedChunksExpirySeconds` | `Long` | `-1` | Delete cached chunks older than this many seconds. `-1` = never expire. Changing this is almost never advisable. |
+| `freeLook` | `Boolean` | `true` | Move without locking the client-side look direction to the movement direction. |
+| `blockFreeLook` | `Boolean` | `false` | Break and place blocks without locking look direction. Requires `freeLook`. |
+| `elytraFreeLook` | `Boolean` | `true` | Elytra fly without locking look direction. |
+| `smoothLook` | `Boolean` | `false` | Average the last `smoothLookTicks` server rotations for a smoother client-side look. |
+| `smoothLookTicks` | `Integer` | `5` | Number of ticks to average for `smoothLook`. |
+| `remainWithExistingLookDirection` | `Boolean` | `true` | Keep the current look direction as long as it is safe to do so. |
+| `rightClickContainerOnArrival` | `Boolean` | `true` | Right-click and open container blocks (chests, furnaces, etc.) when arriving at them via `#goto`. |
+| `enterPortal` | `Boolean` | `true` | Walk all the way into a nether portal when pathing to it, rather than stopping one block before. |
+| `randomLooking` | `Double` | `0.01` | Degrees to randomize pitch and yaw each tick for humanization. `0` to disable. |
+| `randomLooking113` | `Double` | `2.0` | Additional yaw randomization per tick. `0` to disable. |
+| `overshootTraverse` | `Boolean` | `true` | Accept overshooting a traverse by one block as a success. Helps at high speeds. |
+| `minimumImprovementRepropagation` | `Boolean` | `true` | Skip re-propagating cost improvements below 0.01 ticks (floating-point noise). |
+| `maxPathHistoryLength` | `Integer` | `300` | Discard path history older than this many movements. |
+| `pathHistoryCutoffAmount` | `Integer` | `50` | How many movements to cut from the beginning when the history is too long. |
+| `avoidance` | `Boolean` | `false` | Enable mob and spawner avoidance. Has a noticeable performance impact. |
+| `mobAvoidanceCoefficient` | `Double` | `1.5` | Cost multiplier near mobs. Set to `1.0` to disable. Below `1.0` attracts Baritone toward mobs. |
+| `mobAvoidanceRadius` | `Integer` | `8` | Radius around mobs to apply the avoidance coefficient. |
+| `mobSpawnerAvoidanceCoefficient` | `Double` | `2.0` | Cost multiplier near mob spawners. Set to `1.0` to disable. |
+| `mobSpawnerAvoidanceRadius` | `Integer` | `16` | Radius around spawners to apply the avoidance coefficient. |
+| `replantCrops` | `Boolean` | `true` | Replant harvested crops during farming. |
+| `replantNetherWart` | `Boolean` | `false` | Also replant nether wart during farming (requires `replantCrops`). |
+| `farmMaxScanSize` | `Integer` | `256` | Maximum number of blocks the farm process scans per cycle. |
+
+```java
+// Allow inventory management and disconnect on arrival
+Settings s = BaritoneAPI.getSettings();
+s.allowInventory.value = true;
+s.disconnectOnArrival.value = true;
+
+// Avoid mobs while pathing
+s.avoidance.value = true;
+s.mobAvoidanceRadius.value = 12;
+s.mobAvoidanceCoefficient.value = 2.0;
+```
+
+---
+
+## Elytra
+
+Settings for `IElytraProcess` flight automation.
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `elytraTermsAccepted` | `Boolean` | `false` | Must be `true` before the elytra process will activate. |
+| `elytraSimulationTicks` | `Integer` | `20` | Ticks of flight to simulate per calculation. Higher = more accurate but slower. |
+| `elytraPitchRange` | `Integer` | `25` | Maximum pitch deviation from a direct line-of-sight allowed during simulation. |
+| `elytraFireworkSpeed` | `Double` | `1.2` | Minimum speed (blocks/tick) before auto-deploying a firework. |
+| `elytraFireworkSetbackUseDelay` | `Integer` | `15` | Ticks to wait after a server position setback before deploying a firework. |
+| `elytraMinimumAvoidance` | `Double` | `0.2` | Minimum padding added to the player hitbox for obstacle avoidance. |
+| `elytraConserveFireworks` | `Boolean` | `false` | Skip firework deployment when descending along the flight path. |
+| `elytraAutoJump` | `Boolean` | `false` | Automatically walk off ledges to initiate elytra flight when grounded. |
+| `elytraAutoSwap` | `Boolean` | `true` | Automatically swap a low-durability elytra with a fresh one from inventory. |
+| `elytraMinimumDurability` | `Integer` | `5` | Durability threshold below which the elytra is swapped. |
+| `elytraMinFireworksBeforeLanding` | `Integer` | `5` | Land early if firework count drops below this value. |
+| `elytraAllowEmergencyLand` | `Boolean` | `true` | Land if the elytra is nearly out of durability or fireworks. |
+| `elytraNetherSeed` | `Long` | `146008555100680` | World seed used to generate nether terrain for long-distance pathfinding. Defaults to 2b2t's nether seed. |
+| `elytraPredictTerrain` | `Boolean` | `false` | Generate terrain using `elytraNetherSeed` for unloaded chunks. If `false`, unloaded chunks are assumed air. |
+| `elytraChatSpam` | `Boolean` | `false` | Verbose chat logging during elytra flight. |
+| `elytraRenderRaytraces` | `Boolean` | `false` | Render the raytraces used in flight calculation. Debug use. |
+| `elytraRenderHitboxRaytraces` | `Boolean` | `false` | Render hitbox raytraces. Requires `elytraRenderRaytraces`. |
+| `elytraRenderSimulation` | `Boolean` | `true` | Render the best simulated flight path each tick. |
+| `elytraTimeBetweenCacheCullSecs` | `Long` | `180` | Seconds between pruning distant chunks from the elytra path cache. |
+| `elytraCacheCullDistance` | `Integer` | `5000` | Distance (blocks) beyond which chunks are culled from the elytra path cache. |
+| `elytraAllowLandOnNetherFortress` | `Boolean` | `false` | Allow landing on nether brick as a valid landing surface. |
+
+```java
+// Configure elytra for use on 2b2t nether highways
+Settings s = BaritoneAPI.getSettings();
+s.elytraTermsAccepted.value = true;
+s.elytraPredictTerrain.value = true;
+s.elytraNetherSeed.value = 146008555100680L;
+s.elytraConserveFireworks.value = true;
+```

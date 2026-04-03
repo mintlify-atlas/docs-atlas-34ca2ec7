@@ -1,0 +1,91 @@
+---
+title: "Elytra Flight"
+description: "Automated Elytra navigation through the Nether using fireworks."
+---
+
+Baritone can fly with an Elytra and navigate toward a goal automatically, boosting with fireworks as needed. This is handled by the `IElytraProcess`, which takes over from the normal walking pathfinder and calculates a 3D flight path through the air.
+
+Elytra flight works in any dimension, but it is best suited to **the Nether**, where the flat ceiling and floor provide a wide, unobstructed flight corridor and travel distances are naturally compressed by the 8:1 coordinate scale.
+
+## Prerequisites
+
+Before starting:
+
+- Have an Elytra equipped in your chestplate slot.
+- Have fireworks in your inventory (Baritone boosts automatically when it detects you're losing altitude).
+- Set a goal with `#goal` so Baritone knows where to fly.
+
+<Warning>
+  Elytra flight requires a native library to load correctly. If `IElytraProcess.isLoaded()` returns `false`, the process will not activate. Check that your Baritone installation is complete and the native libraries are present.
+</Warning>
+
+## Basic usage
+
+```bash
+# 1. Set a long-distance goal (X/Z only is typical for Nether travel)
+#goal 10000 10000
+
+# 2. Start elytra flight
+#elytra
+
+# 3. Stop at any time
+#stop
+```
+
+You can also set a goal and start flying in a single step using `#goto`:
+
+```bash
+# Fly to X=10000, Z=10000 immediately
+#goto 10000 10000
+```
+
+<Tip>
+  For Nether highways, set your goal to the overworld coordinates divided by 8. For example, to reach overworld X=80000, Z=0, set `#goal 10000 0` in the Nether and then `#elytra`.
+</Tip>
+
+## How it works
+
+Once activated, the elytra process:
+
+1. Calculates a 3D flight path from your current position to the goal, routing around terrain.
+2. Controls your pitch and yaw to follow the path.
+3. Fires a firework automatically whenever your speed or altitude drops below the threshold needed to keep flying.
+4. Recalculates the path if you drift off course or new terrain is loaded.
+
+You can call `#repack` to force Baritone to re-cache the chunks around you if the terrain data looks stale.
+
+## Relevant settings
+
+Baritone exposes several settings that tune elytra behavior. Check `Settings.java` or run `#help` in-game for the current defaults and descriptions. Useful ones to know about include settings controlling:
+
+- How aggressively Baritone fires fireworks (boost thresholds)
+- The margin of safety kept from terrain during path calculation
+- Whether to land automatically when the goal is reached
+
+## Programmatic usage
+
+```java
+IBaritone baritone = BaritoneAPI.getProvider().getPrimaryBaritone();
+IElytraProcess elytra = baritone.getElytraProcess();
+
+if (elytra.isLoaded()) {
+    // Fly to a specific block position
+    elytra.pathTo(new BlockPos(10000, 64, 10000));
+
+    // Or fly toward any Goal
+    elytra.pathTo(new GoalXZ(10000, 10000));
+
+    // Check current destination
+    BlockPos dest = elytra.currentDestination();
+
+    // Get the current calculated path
+    List<BetterBlockPos> path = elytra.getPath();
+
+    // Reset internal state without changing destination
+    elytra.resetState();
+}
+```
+
+<Note>
+  Check `isSafeToCancel()` before interrupting the elytra process programmatically. Cancelling mid-flight at low altitude can result in fall damage or death.
+</Note>
